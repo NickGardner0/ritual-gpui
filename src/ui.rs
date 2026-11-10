@@ -1,5 +1,8 @@
 //! Small shared UI pieces: icons, tooltips, popover shells.
 
+pub(crate) mod design;
+use design::metrics;
+
 use crate::theme::{self, Theme, craft};
 use crate::time::civil;
 use gpui::{prelude::FluentBuilder, *};
@@ -81,13 +84,13 @@ pub fn toast_el(kind: ToastKind, msg: &SharedString, t0: std::time::Instant, win
 
 /// Popover shell shared by the slash menu, block menu and toolbar dropdowns:
 /// the light panel (macOS 26 menu material, near-white), hairline,
-/// radius 12, soft drop.
+/// rounded edge and soft shadow.
 pub fn popover() -> Div {
     div()
         .bg(crate::theme::raised(Theme::popover_bg()))
         .border_1()
         .border_color(Theme::line_border())
-        .rounded(px(MENU_RADIUS))
+        .rounded(px(metrics().menu_radius))
         .shadow(theme::shadow_menu())
         .font_family(theme::ui_font())
         .text_color(Theme::text())
@@ -119,7 +122,7 @@ pub fn list_line() -> Hsla {
 /// The quiet list hover: a rounded fill that also hides the row's
 /// hairline above it.
 pub fn row_hover(s: StyleRefinement) -> StyleRefinement {
-    s.bg(Theme::fill_hover()).border_color(transparent_black()).rounded(px(ROW_RADIUS))
+    s.bg(Theme::fill_hover()).border_color(transparent_black()).rounded(px(metrics().row_radius))
 }
 
 
@@ -128,22 +131,22 @@ pub fn scrim() -> Hsla {
     theme::ca(craft::N1000, 0.25)
 }
 
-/// The modal dialog: white, radius 16, deep soft drop.
+/// Raised modal surface, shared by workspace dialogs.
 pub fn dialog(id: &'static str) -> Stateful<Div> {
-    div().id(id).occlude().rounded(px(16.)).bg(crate::theme::raised(Theme::bg_body())).shadow(theme::shadow_dialog()).font_family(theme::ui_font()).text_color(Theme::text())
+    div().id(id).occlude().rounded(px(metrics().dialog_radius)).bg(crate::theme::raised(Theme::bg_body())).shadow(theme::shadow_dialog()).font_family(theme::ui_font()).text_color(Theme::text())
 }
 
-/// The primary button: the accent, a white 13pt semibold label, 30 tall, radius 9.
+/// The primary button: the accent, a white 13pt semibold label, at the workspace control height.
 pub fn primary_button(id: &'static str, label: &'static str) -> Stateful<Div> {
     div()
         .id(id)
         .flex_none()
-        .h(px(30.))
+        .h(px(metrics().control_height))
         .px(px(16.))
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(9.))
+        .rounded(px(metrics().control_radius))
         .cursor_pointer()
         .bg(Theme::primary())
         .shadow(theme::shadow_button())
@@ -156,24 +159,24 @@ pub fn primary_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .child(crate::settings::label(label))
 }
 
-/// The secondary button: white with a hairline and a 1px drop, 30 tall, radius 9.
+/// The secondary button: white with a hairline and a 1px drop, at the workspace control height.
 pub fn secondary_button(id: &'static str, label: &'static str) -> Stateful<Div> {
     div()
         .id(id)
         .flex_none()
-        .h(px(30.))
+        .h(px(metrics().control_height))
         .px(px(16.))
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(9.))
+        .rounded(px(metrics().control_radius))
         .cursor_pointer()
         .bg(crate::theme::raised(Theme::bg_body()))
         .border_1()
         .border_color(Theme::button_border())
         .shadow(theme::shadow_button())
-        .hover(|s| s.bg(theme::c(craft::N100)))
-        .active(|s| s.bg(theme::c(craft::N200)))
+        .hover(|s| s.bg(Theme::button_hover()))
+        .active(|s| s.bg(Theme::button_pressed()))
         .text_size(px(13.))
         .line_height(px(20.))
         .text_color(Theme::text())
@@ -197,9 +200,7 @@ pub fn close_button(id: &'static str) -> Stateful<Div> {
         .child(icon("x", 16., gpui::white()))
 }
 
-/// Menus and popovers round at 12 (the native menu panel); their
-/// rows at 6, 5pt in from the edge.
-pub const MENU_RADIUS: f32 = 12.;
+/// Legacy editor row geometry; its inline tools have their own layout.
 pub const ROW_RADIUS: f32 = 6.;
 
 /// A menu row: 32 tall, 13pt label, 16pt glyph; hovering lays the quiet
@@ -209,23 +210,17 @@ pub const MENU_PAD_Y: f32 = 6.;
 /// How far a menu row sits in from the menu's sides.
 pub const MENU_INSET: f32 = 5.;
 
+/// A full-width interactive option. The containing list supplies its outer inset.
+pub(crate) fn option_row(id: impl Into<ElementId>) -> Stateful<Div> {
+    let style = metrics();
+    div().id(id).flex_none().h(px(style.menu_height)).px(px(style.row_padding))
+        .flex().items_center().gap(px(style.icon_gap)).rounded(px(style.row_radius))
+        .cursor_pointer().text_size(px(13.)).line_height(px(20.)).text_color(Theme::text())
+        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed()))
+}
+
 pub fn menu_row(id: impl Into<ElementId>, group: SharedString) -> Stateful<Div> {
-    div()
-        .id(id)
-        .group(group)
-        .flex_none()
-        .h(px(MENU_ROW_H))
-        .mx(px(MENU_INSET))
-        .px(px(8.))
-        .flex()
-        .items_center()
-        .gap(px(8.))
-        .rounded(px(ROW_RADIUS))
-        .cursor_pointer()
-        .text_size(px(13.))
-        .line_height(px(20.))
-        .text_color(Theme::text())
-        .hover(|s| s.bg(Theme::fill_hover()))
+    option_row(id).group(group).mx(px(MENU_INSET))
 }
 
 /// A [`menu_row`]'s label; it keeps its colour on hover (the row's fill
@@ -413,14 +408,14 @@ impl<E: InteractiveElement> TitleBarExt for E {}
 
 pub(crate) const WINDOW_CONTROLS_W: f32 = if cfg!(any(target_os = "windows", target_os = "linux")) { 163. } else { 0. };
 pub(crate) fn header_right_inset() -> f32 {
-    if cfg!(any(target_os = "windows", target_os = "linux")) { WINDOW_CONTROLS_W } else { (crate::app::HEADER_H - crate::app::HEADER_ACTIONS_H) / 2. }
+    if cfg!(any(target_os = "windows", target_os = "linux")) { WINDOW_CONTROLS_W } else { (crate::app::HEADER_H - metrics().toolbar_target) / 2. }
 }
 
 pub(crate) fn window_controls(window: &Window) -> Option<Div> {
     if !cfg!(any(target_os = "windows", target_os = "linux")) { return None; }
     // Windows must receive mouse-down to arm its native caption buttons.
     let button = |id: &'static str, area: WindowControlArea, label: &'static str| {
-        div().id(id).size(px(crate::app::HEADER_ACTIONS_H)).mx(px(7.)).rounded(px(8.)).flex_none().flex().items_center().justify_center().cursor_pointer()
+        div().id(id).size(px(metrics().toolbar_target)).mx(px(7.)).rounded(px(8.)).flex_none().flex().items_center().justify_center().cursor_pointer()
             .occlude()
             .when(cfg!(target_os = "linux"), |d| d.no_drag())
             .when(cfg!(target_os = "windows"), |d| d.window_control_area(area))
@@ -891,9 +886,15 @@ pub fn continuous_surface(radius: f32, color: Hsla) -> Div {
     }).absolute().inset_0())
 }
 
+/// A single action with a square hit area and a rounded hover background.
+pub(crate) fn icon_button(id: &'static str, glyph: impl IntoElement) -> Stateful<Div> {
+    div().id(id).size(px(metrics().toolbar_target)).rounded(px(metrics().control_radius))
+        .flex_none().flex().items_center().justify_center().cursor_pointer()
+        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed())).child(glyph)
+}
+
 pub fn header_icon(id: &'static str, name: &'static str) -> Stateful<Div> {
-    div().id(id).no_drag().size(px(crate::app::HEADER_ACTIONS_H)).rounded(px(8.)).flex_none().flex().items_center().justify_center().cursor_pointer()
-        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed())).child(icon(name, 18., Theme::icon()))
+    icon_button(id, icon(name, metrics().nav_icon, Theme::icon())).no_drag()
 }
 
 pub(crate) fn checkbox(on: bool) -> Div {

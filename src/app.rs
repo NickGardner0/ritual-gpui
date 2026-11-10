@@ -1163,14 +1163,14 @@ impl Workspace {
         // page_header's left inset (26 with the sidebar, else the traffic
         // lights plus the 4 + 28 + 12 of 展开侧栏), then 16 clear of the title.
         let left = if self.sidebar_open { 26. } else { theme::TRAFFIC_LIGHTS_W + 44. + if cfg!(target_os = "windows") { 32. } else { 0. } } + title_w + 16.;
-        // + is 32 wide with an 8pt inset; 16 clear of it.
-        let right = HEADER_ACTIONS_H + crate::ui::header_right_inset() + 16.;
+        // Keep the centered search field clear of the trailing action.
+        let right = crate::ui::design::metrics().toolbar_target + crate::ui::header_right_inset() + 16.;
         let half = (main / 2. - left).min(main / 2. - right);
         let width = (main - 320.).min(2. * half).min(360.);
         if width < 120. { return None }
-        Some(div().id("header-search").absolute().left(px((main - width) / 2.)).top(px(8.))
-            .w(px(width)).h(px(32.)).no_drag().flex().items_center().gap(px(8.)).px(px(10.))
-            .rounded(px(9.)).bg(Theme::fill_hover())
+        Some(div().id("header-search").absolute().left(px((main - width) / 2.)).top(px((HEADER_H - crate::ui::design::metrics().toolbar_target) / 2.))
+            .w(px(width)).h(px(crate::ui::design::metrics().toolbar_target)).no_drag().flex().items_center().gap(px(8.)).px(px(10.))
+            .rounded(px(crate::ui::design::metrics().control_radius)).bg(Theme::fill_hover())
             .cursor_pointer().hover(|s| s.bg(Theme::fill_hover_strong()))
             .child(icon("search", 15., Theme::icon()))
             .child(div().flex_1().min_w_0().truncate().text_size(px(13.)).text_color(Theme::text_caption()).child(crate::settings::tr("搜索文档…", "Search documents…")))
@@ -1327,7 +1327,7 @@ impl Workspace {
             .child(div().flex_1().min_w(px(16.)))
             .child(
                 div().gap(px(4.))
-                    .h(px(HEADER_ACTIONS_H)).flex_none()
+                    .h(px(crate::ui::design::metrics().toolbar_target)).flex_none()
                     .flex()
                     .items_center()
                     .when(self.current.is_some(), |d| {
@@ -1359,9 +1359,8 @@ impl Workspace {
     }
 }
 
-/// Header and action group share an 8px top/right inset.
+/// Header height stays fixed as toolbar targets change.
 pub const HEADER_H: f32 = 48.;
-pub(crate) const HEADER_ACTIONS_H: f32 = 32.;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

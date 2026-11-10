@@ -17,7 +17,8 @@ use crate::store::Entry;
 use crate::editor::image::PictureExt;
 use crate::theme::{self, Theme};
 use crate::trash::{empty_state, list_header_text, list_line, menu_label, page_header, row_hover};
-use crate::ui::{ROW_RADIUS, TipExt, icon, menu_glyph, menu_row, popover, ui_text};
+use crate::ui::design::metrics;
+use crate::ui::{TipExt, icon, menu_glyph, menu_row, popover, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 use std::cell::RefCell;
 use std::collections::{HashMap};
@@ -552,16 +553,16 @@ impl Workspace {
         let toggle = |id: &'static str, ic: &'static str, on: bool, tip: &'static str, grid: bool| {
             div()
                 .id(id)
-                .w(px(30.))
-                .h(px(24.))
+                .w(px(metrics().small_control_height + 2.))
+                .h(px(metrics().small_control_height - 4.))
                 .flex()
                 .items_center()
                 .justify_center()
-                .rounded(px(7.))
+                .rounded(px(metrics().control_radius - 2.))
                 .cursor_pointer()
                 .when(on, |d| d.bg(Theme::fill_hover_strong()))
                 .when(!on, |d| d.tip(tip, None).hover(|s| s.bg(Theme::fill_hover())))
-                .child(icon(ic, 14., Theme::icon()))
+                .child(icon(ic, metrics().menu_icon - 2., Theme::icon()))
                 .on_click(cx.listener(move |w, _, _, cx| {
                     if habits && let Some(page) = &w.habits {
                         page.update(cx, |h, cx| { h.grid = grid; cx.notify(); });
@@ -580,7 +581,7 @@ impl Workspace {
             .p(px(1.))
             .flex()
             .gap(px(2.))
-            .rounded(px(9.))
+            .rounded(px(metrics().control_radius))
             .child(toggle("home-grid", "view-grid", current_grid, crate::settings::text("切换为宫格视图"), true))
             .child(toggle("home-list", "view-list", !current_grid, crate::settings::text("切换为列表视图"), false))
     }
@@ -631,11 +632,11 @@ impl Workspace {
             div()
                 .id(id)
                 .mr(px(8.))
-                .h(px(28.))
+                .h(px(metrics().small_control_height))
                 .px(px(10.))
                 .flex()
                 .items_center()
-                .rounded(px(9.))
+                .rounded(px(metrics().control_radius))
                 .cursor_pointer()
                 .text_size(px(13.))
                 .line_height(px(20.))
@@ -653,22 +654,22 @@ impl Workspace {
         // 批量管理: the sidebar's 批量操作 selection, entered and shown here
         // too, with a toolbar of its own.
         let text_btn = |id: &'static str, ic: &'static str, label: &'static str, enabled: bool| {
-            div().id(id).flex_none().h(px(28.)).px(px(10.)).flex().items_center().gap(px(6.)).rounded(px(9.))
+            div().id(id).flex_none().h(px(metrics().small_control_height)).px(px(10.)).flex().items_center().gap(px(6.)).rounded(px(metrics().control_radius))
                 .text_size(px(13.)).line_height(px(20.))
                 .text_color(if enabled { Theme::text() } else { Theme::text_disabled() })
                 .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(Theme::fill_hover())))
-                .child(icon(ic, 14., if enabled { Theme::icon() } else { Theme::text_disabled() }))
+                .child(icon(ic, metrics().menu_icon - 2., if enabled { Theme::icon() } else { Theme::text_disabled() }))
                 .child(label)
         };
         let toolbar = div()
             .mt(px(12.))
-            .h(px(28.))
+            .h(px(metrics().small_control_height))
             .flex_none()
             .pl(px(24.))
             .pr(px(24.))
             .flex()
             .items_center()
-            .when(ritual && f32::from(window.viewport_size().width) - if self.sidebar_open { self.sidebar_w(window) } else { 0. } < 560., |d|
+            .when(ritual && f32::from(window.viewport_size().width) - if self.sidebar_open { self.sidebar_w(window) } else { 0. } < 610., |d|
                 d.h_auto().flex_wrap().gap_y(px(4.)));
         let toolbar = if let Some(sel) = &self.batch {
             let ids: Vec<String> = self.home_entries().into_iter().take(crate::sidebar::BATCH_LIMIT).map(|e| e.id).collect();
@@ -700,10 +701,10 @@ impl Workspace {
             .when(!tracking, |d| d.child(text_btn("home-batch", "batch", crate::settings::text("批量管理"), true).text_color(Theme::text_caption()).mr(px(8.))
                 .on_click(cx.listener(|w, _, _, cx| { w.batch = Some(vec![]); w.row_menu = None; w.home.sort_menu = false; cx.notify(); })))
             .child(
-                div().id("home-sort").relative().h(px(28.)).px(px(10.)).flex().items_center().gap(px(6.))
-                    .rounded(px(9.)).text_size(px(13.)).text_color(Theme::text_caption()).cursor_pointer()
+                div().id("home-sort").relative().h(px(metrics().small_control_height)).px(px(10.)).flex().items_center().gap(px(6.))
+                    .rounded(px(metrics().control_radius)).text_size(px(13.)).text_color(Theme::text_caption()).cursor_pointer()
                     .hover(|s| s.bg(Theme::fill_hover())).when(self.home.sort_menu, |d| d.bg(Theme::fill_hover_strong()))
-                    .child(icon("sort-down", 14., Theme::icon())).child(crate::settings::label(self.home.sort.label()))
+                    .child(icon("sort-down", metrics().menu_icon - 2., Theme::icon())).child(crate::settings::label(self.home.sort.label()))
                     .child(self.home.track("home-sort"))
                     .on_click(cx.listener(|w, _, _, cx| { w.home.sort_menu = !w.home.sort_menu; cx.notify(); })),
             )
@@ -768,7 +769,7 @@ impl Workspace {
                         .flex()
                         .items_center()
                         .gap(px(4.))
-                        .rounded(px(ROW_RADIUS))
+                        .rounded(px(crate::ui::design::metrics().row_radius))
                         .text_size(px(13.))
                         .line_height(px(24.))
                         .text_color(if sorted { Theme::text() } else { list_header_text() })
@@ -804,7 +805,7 @@ impl Workspace {
                 .when(i > 0, |d| d.border_t_1().border_color(list_line()))
                 .cursor_pointer()
                 .hover(row_hover)
-                .when(menu_on, |d| d.bg(Theme::fill_hover()).border_color(transparent_black()).rounded(px(ROW_RADIUS)))
+                .when(menu_on, |d| d.bg(Theme::fill_hover()).border_color(transparent_black()).rounded(px(crate::ui::design::metrics().row_radius)))
                 .on_click(cx.listener(move |w, _, window, cx| w.home_click(&id, window, cx)))
                 .when(check.is_none(), |d| d.on_mouse_down(
                     MouseButton::Right,

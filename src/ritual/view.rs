@@ -1,4 +1,5 @@
 use super::*;
+use crate::ui::design::RITUAL;
 use crate::{theme::Theme, ui};
 use gpui::prelude::FluentBuilder;
 
@@ -18,7 +19,7 @@ impl Habits {
         let handle = field.read(cx).focus_handle(cx);
         let focused = handle.is_focused(window);
         let control = div().id(label).w_full().h(px(36.)).px(px(10.)).flex().items_center().gap(px(8.))
-            .border_1().rounded(px(6.)).border_color(if focused { Theme::primary() } else { Theme::line_border() }).bg(Theme::bg_body())
+            .border_1().rounded(px(RITUAL.control_radius)).border_color(if focused { Theme::primary() } else { Theme::line_border() }).bg(Theme::bg_body())
             .when(self.saving, |el| el.child(div().flex_1().child(field.read(cx).text.clone())))
             .when(!self.saving, |el| el.cursor(CursorStyle::IBeam).on_click(move |_, window, _| handle.focus(window)).child(field.clone()))
             .when_some(suffix, |el, unit| el.child(div().text_color(Theme::text_caption()).child(unit.to_owned())));
@@ -81,18 +82,18 @@ impl Render for Habits {
             else { items = items.max_w(px(408.)).flex_col().pt(px(16.)); }
             for h in &self.habits {
                 let id = h.habit.id;
-                let row = div().id(SharedString::from(id.to_string())).flex().rounded(px(6.)).cursor_pointer()
+                let row = div().id(SharedString::from(id.to_string())).flex().rounded(px(RITUAL.row_radius)).cursor_pointer()
                     .hover(|s| s.bg(Theme::fill_hover()))
                     .on_click(cx.listener(move |v, _, w, cx| v.select(id, w, cx)));
                 let name = div().min_w_0().font_weight(FontWeight::MEDIUM).child(h.habit.name.clone());
                 let value = format!("{} {}", display_amount(h.value()), h.habit.unit);
                 items = items.child(if self.grid {
-                    row.w(px(192.)).max_w_full().h(px(128.)).p(px(15.)).flex_col().rounded(px(14.))
+                    row.w(px(192.)).max_w_full().h(px(128.)).p(px(15.)).flex_col().rounded(px(RITUAL.menu_radius))
                         .border_1().border_color(Theme::line_border())
                         .child(div().text_size(px(12.)).text_color(Theme::text_caption()).child(h.habit.category.clone()))
                         .child(name.w_full().overflow_hidden().max_h(px(42.)).mt(px(3.)).text_size(px(17.)).line_height(px(21.))).child(div().flex_1()).child(div().text_size(px(21.)).font_weight(FontWeight::MEDIUM).child(value))
                 } else {
-                    row.w_full().min_h(px(28.)).px(px(6.)).gap(px(16.)).justify_between().items_center()
+                    row.w_full().min_h(px(RITUAL.menu_height)).px(px(RITUAL.row_padding)).gap(px(16.)).justify_between().items_center()
                         .text_size(px(17.)).child(name.truncate()).child(div().flex_none().child(value))
                 });
             }

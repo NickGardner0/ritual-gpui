@@ -8,7 +8,7 @@ use crate::settings::display_title;
 use crate::store::Entry;
 use crate::theme::{self, Theme};
 use crate::trash::scrim;
-use crate::ui::{ROW_RADIUS, format_visit, icon, ui_runs, ui_text};
+use crate::ui::{format_visit, icon, ui_runs, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 use std::ops::Range;
 
@@ -141,7 +141,7 @@ fn input_button(id: &'static str, glyph: &'static str, size: f32, color: Hsla) -
         .flex()
         .items_center()
         .justify_center()
-        .rounded(px(ROW_RADIUS))
+        .rounded(px(crate::ui::design::metrics().row_radius))
         .cursor_pointer()
         .hover(|s| s.bg(Theme::fill_hover()))
         .child(icon(glyph, size, color))
@@ -305,7 +305,7 @@ impl Workspace {
             .pl(px(12.))
             .flex()
             .items_center()
-            .rounded(px(ROW_RADIUS))
+            .rounded(px(crate::ui::design::metrics().row_radius))
             .cursor_pointer()
             .when(self.search_sel == Some(row), |d| d.bg(Theme::fill_hover()))
             .on_hover(cx.listener(move |w, hovered: &bool, _, cx| {
@@ -426,7 +426,7 @@ impl Workspace {
             .h(px(630f32.min(vh - 120.).max(200.)))
             .flex()
             .flex_col()
-            .rounded(px(16.))
+            .rounded(px(crate::ui::design::metrics().dialog_radius))
             .bg(crate::theme::raised(Theme::bg_body()))
             .shadow(theme::shadow_dialog())
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())

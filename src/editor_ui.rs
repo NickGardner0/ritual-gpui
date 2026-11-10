@@ -33,7 +33,7 @@ pub const MENU_INSET: f32 = crate::ui::MENU_INSET;
 /// A dropdown menu's panel: the app's menu shell.
 pub fn menu() -> Div { crate::ui::popover() }
 
-pub fn menu_row(id: impl Into<ElementId>, group: SharedString) -> Stateful<Div> { crate::ui::menu_row(id, group) }
+pub fn menu_row(id: impl Into<ElementId>, group: SharedString) -> Stateful<Div> { crate::ui::menu_row(id, group).h(px(MENU_ROW_H)) }
 pub fn menu_label(label: impl Into<SharedString>, _group: SharedString, _hover: Hsla) -> Div {
     div().whitespace_nowrap().child(crate::settings::label(label.into()))
 }

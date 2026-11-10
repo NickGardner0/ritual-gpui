@@ -144,6 +144,7 @@ fn run_workspace(ritual: bool) {
     app.on_reopen(|cx| if cx.windows().is_empty() { open_main_window(false, cx); });
     app.run(move |cx: &mut App| {
         if ritual {
+            ui::design::use_ritual();
             cx.set_global(ritual::Profile);
             ritual::bind_keys(cx);
         }

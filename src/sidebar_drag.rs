@@ -5,7 +5,7 @@ use crate::ui::{icon, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 use std::{cell::Cell, collections::{HashMap, HashSet, VecDeque}, rc::Rc, time::Instant};
 
-const PITCH: f32 = 31.;
+use crate::{sidebar::row_pitch, ui::design::metrics};
 /// Whether clicking a folder open or shut animates (the drawer below): 外观 ›
 /// 动画 › 丰富. Otherwise rows appear and go in the same frame. Lifting and
 /// dropping an open folder keep their drawers either way.
@@ -103,11 +103,11 @@ impl Drawer {
     }
     /// One frame: `span` is how far the edge can travel on screen, `full` the drawer's whole height.
     fn step(&mut self, dt: f32, span: f32, full: f32) {
-        let span = span.clamp(PITCH.min(full), full.max(0.));
+        let span = span.clamp(row_pitch().min(full), full.max(0.));
         let goal = if self.opening { span } else { 0. };
         let dur = *self.dur.get_or_insert_with(|| {
             self.from = self.h.min(span);
-            let open = (0.13 + 0.012 * (goal - self.from).abs() / PITCH).clamp(0.15, 0.25);
+            let open = (0.13 + 0.012 * (goal - self.from).abs() / row_pitch()).clamp(0.15, 0.25);
             if self.opening { open } else { open * 0.8 }
         });
         self.t += dt;
@@ -193,12 +193,12 @@ impl SidebarDrag {
 
 /// A row's face without its controls: the drag ghost and rows on their way out.
 fn row_face(e: &Entry, open: bool) -> Div {
-    div().h(px(crate::sidebar::ROW_H)).w_full().pl(px(6.)).flex().items_center()
+    div().h(px(metrics().nav_height)).w_full().pl(px(6.)).flex().items_center()
         .child(div().size(px(20.)).flex_none().flex().items_center().justify_center().map(|d| match &e.icon {
-            _ if e.meta.folder.is_some() => d.child(icon(if open { "folder-open" } else { "folder" }, crate::sidebar::ROW_ICON, Theme::icon())),
-            _ if e.meta.markdown => d.child(icon("doc-md", crate::sidebar::ROW_ICON, Theme::icon())),
+            _ if e.meta.folder.is_some() => d.child(icon(if open { "folder-open" } else { "folder" }, metrics().nav_icon, Theme::icon())),
+            _ if e.meta.markdown => d.child(icon("doc-md", metrics().nav_icon, Theme::icon())),
             Some(em) => d.text_size(px(13.)).line_height(px(20.)).child(em.clone()),
-            None => d.child(icon("doc", crate::sidebar::ROW_ICON, Theme::icon())),
+            None => d.child(icon("doc", metrics().nav_icon, Theme::icon())),
         }))
         .child(div().pl(px(9.)).flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().text_size(px(13.))
             .child(ui_text(crate::settings::display_title(&e.title))))
@@ -249,15 +249,15 @@ impl Workspace {
         let Some(bounds) = self.folder_drag.bounds.get() else { return };
         let rows = self.drag_rows();
         let Some(d) = self.folder_drag.active.as_mut().filter(|d| d.started) else { return };
-        let y = f32::from(d.at.y - d.offset.y - bounds.top()) + 15.;
+        let y = f32::from(d.at.y - d.offset.y - bounds.top()) + metrics().nav_height / 2.;
         let desired = (d.initial_depth as i32 + (f32::from(d.at.x - d.start.x) / INDENT).round() as i32).max(0) as usize;
         // Hit the visible folder row with the pointer, including collapsed folders.
         // Accept immediately; the dwell timer only controls automatic expansion.
         let pointer_y = f32::from(d.at.y - bounds.top());
         let folder = rows.iter().enumerate().find(|(i, r)| {
             let top = self.folder_drag.springs.get(&r.entry.id).map_or(
-                (*i + usize::from(*i >= d.index)) as f32 * PITCH, |s| s.p[1]);
-            r.entry.meta.folder.is_some() && pointer_y > top + 5. && pointer_y < top + 26.
+                (*i + usize::from(*i >= d.index)) as f32 * row_pitch(), |s| s.p[1]);
+            r.entry.meta.folder.is_some() && pointer_y > top + 5. && pointer_y < top + metrics().nav_height - 4.
                 && f32::from(d.at.x - bounds.left()) >= r.depth as f32 * INDENT
         });
         if let Some((i, r)) = folder {
@@ -274,11 +274,11 @@ impl Workspace {
                 && let Some(f) = self.folder_drag.fx.get_mut(&r.entry.id) { f.pop.v += 4.; }
             return;
         }
-        let slot_y = d.index as f32 * PITCH;
-        let in_slot = y >= slot_y && y <= slot_y + PITCH;
+        let slot_y = d.index as f32 * row_pitch();
+        let in_slot = y >= slot_y && y <= slot_y + row_pitch();
         d.hover = None;
         let index = if in_slot { d.index } else {
-            rows.iter().enumerate().filter(|(i, _)| y > (*i + usize::from(*i >= d.index)) as f32 * PITCH + 15.).count()
+            rows.iter().enumerate().filter(|(i, _)| y > (*i + usize::from(*i >= d.index)) as f32 * row_pitch() + metrics().nav_height / 2.).count()
         };
         let prev = index.checked_sub(1).and_then(|i| rows.get(i));
         let max = prev.map_or(0, |r| r.depth + usize::from(r.entry.meta.folder.is_some()));
@@ -314,7 +314,7 @@ impl Workspace {
         let mut spring = d.ghost;
         if let Some(b) = bounds { spring.p[0] -= f32::from(b.left()); spring.p[1] -= f32::from(b.top()); }
         spring.p[0] -= 3. * lift; spring.p[1] -= lift; spring.p[2] += 6. * lift;
-        spring.target = [depth as f32 * INDENT, index as f32 * PITCH, spring.p[2]];
+        spring.target = [depth as f32 * INDENT, index as f32 * row_pitch(), spring.p[2]];
         self.folder_drag.springs.insert(movement.id.clone(), spring);
         let fx = self.folder_drag.fx.entry(movement.id.clone()).or_insert_with(RowFx::new);
         fx.show = SHOW;
@@ -447,7 +447,7 @@ impl Workspace {
         let fd = &mut self.folder_drag;
         let index: HashMap<&str, usize> = rows.iter().enumerate().map(|(i, r)| (r.entry.id.as_str(), i)).collect();
         let targets: Vec<[f32; 3]> = rows.iter().enumerate().map(|(i, r)| {
-            let y = (i + usize::from(slot.is_some_and(|(index, _)| i >= index))) as f32 * PITCH;
+            let y = (i + usize::from(slot.is_some_and(|(index, _)| i >= index))) as f32 * row_pitch();
             let x = r.depth as f32 * INDENT;
             let inset = if receiving.zip(receiving_end).is_some_and(|(start, end)| i >= start && i < end) { 8. } else { 0. };
             [x, y, width - x - inset]
@@ -485,7 +485,7 @@ impl Workspace {
                 let Some(i) = fd.shown.iter().position(|r| &r.entry.id == f) else { continue };
                 let gone = under(&fd.shown, i);
                 if gone.is_empty() { continue; }
-                let full = gone.len() as f32 * PITCH;
+                let full = gone.len() as f32 * row_pitch();
                 let h = fd.drawers.iter().position(|d| d.folder.as_ref() == Some(f)).map_or(full, |k| fd.drawers.remove(k).h);
                 // A drawer inside one that is closing goes with it.
                 let inside: HashSet<&str> = gone.iter().map(|r| r.entry.id.as_str()).collect();
@@ -503,7 +503,7 @@ impl Workspace {
             if !gone.is_empty() && !gone.iter().any(|r| index.contains_key(r.entry.id.as_str())) {
                 for r in &gone { fd.springs.remove(&r.entry.id); fd.fx.remove(&r.entry.id); }
                 // Still opening when it was picked up: close from where it got to.
-                let full = fd.drawers.iter().position(|d| d.folder.as_ref() == Some(id)).map_or(gone.len() as f32 * PITCH, |k| fd.drawers.remove(k).h);
+                let full = fd.drawers.iter().position(|d| d.folder.as_ref() == Some(id)).map_or(gone.len() as f32 * row_pitch(), |k| fd.drawers.remove(k).h);
                 fd.drawers.push(Drawer::new(Some(id.clone()), gone, false, Some(i), full));
                 started = true;
             }
@@ -593,23 +593,23 @@ impl Workspace {
         order.sort_by_key(|&k| if fd.drawers[k].anchor.is_some() { 0 } else { fd.drawers[k].folder.as_ref().and_then(|f| index.get(f.as_str())).map_or(0, |&i| rows[i].depth + 1) });
         for k in order {
             let d = &mut fd.drawers[k];
-            let full = d.rows.len() as f32 * PITCH;
+            let full = d.rows.len() as f32 * row_pitch();
             if let Some(at) = d.anchor {
                 // Closing at the slot a lifted folder left (one row tall, so the edge starts below it).
-                let top = (at as f32 + 1.) * PITCH + shift.get(at).copied().unwrap_or(0.);
+                let top = (at as f32 + 1.) * row_pitch() + shift.get(at).copied().unwrap_or(0.);
                 d.step(dt, vis_bottom - top, full);
                 moving = true;
                 let edge = (top, top + d.h.max(0.));
                 for (n, r) in d.rows.iter().enumerate() {
                     let x = r.depth as f32 * INDENT;
-                    let local = ((d.h - n as f32 * PITCH) / (PITCH * 0.7)).clamp(0., 1.);
-                    closing.push((r.clone(), [x, top + n as f32 * PITCH, width - x], edge, local * local * (3. - 2. * local)));
+                    let local = ((d.h - n as f32 * row_pitch()) / (row_pitch() * 0.7)).clamp(0., 1.);
+                    closing.push((r.clone(), [x, top + n as f32 * row_pitch(), width - x], edge, local * local * (3. - 2. * local)));
                 }
                 for s in shift.iter_mut().skip(at) { *s += d.h; }
                 continue;
             }
             let fi = match &d.folder { None => None, Some(f) => match index.get(f.as_str()) { Some(&i) => Some(i), None => { d.done = true; continue } } };
-            let top = fi.map_or(0., |i| base_y(i) + shift[i] + PITCH);
+            let top = fi.map_or(0., |i| base_y(i) + shift[i] + row_pitch());
             d.step(dt, vis_bottom - top, full);
             moving = true;
             let edge = (top, top + d.h.max(0.));
@@ -620,7 +620,7 @@ impl Workspace {
                     let (lo, hi) = clip[i].unwrap_or((f32::MIN, f32::MAX));
                     clip[i] = Some((lo.max(edge.0), hi.min(edge.1)));
                     // Each row is fully in by the time the edge is most of the way past it.
-                    let local = ((d.h - (i - first) as f32 * PITCH) / (PITCH * 0.7)).clamp(0., 1.);
+                    let local = ((d.h - (i - first) as f32 * row_pitch()) / (row_pitch() * 0.7)).clamp(0., 1.);
                     reveal[i] = reveal[i].min(local * local * (3. - 2. * local));
                 }
                 for s in shift.iter_mut().skip(end) { *s += d.h - full; }
@@ -628,20 +628,20 @@ impl Workspace {
                 let fi = fi.unwrap_or(0);
                 for (n, r) in d.rows.iter().enumerate() {
                     let x = r.depth as f32 * INDENT;
-                    let local = ((d.h - n as f32 * PITCH) / (PITCH * 0.7)).clamp(0., 1.);
-                    closing.push((r.clone(), [x, top + n as f32 * PITCH, width - x], edge, local * local * (3. - 2. * local)));
+                    let local = ((d.h - n as f32 * row_pitch()) / (row_pitch() * 0.7)).clamp(0., 1.);
+                    closing.push((r.clone(), [x, top + n as f32 * row_pitch(), width - x], edge, local * local * (3. - 2. * local)));
                 }
                 for s in shift.iter_mut().skip(fi + 1) { *s += d.h; }
             }
         }
-        let extra: f32 = fd.drawers.iter().map(|d| if d.opening { d.h - d.rows.len() as f32 * PITCH } else { d.h }).sum();
+        let extra: f32 = fd.drawers.iter().map(|d| if d.opening { d.h - d.rows.len() as f32 * row_pitch() } else { d.h }).sum();
         fd.drawers.retain(|d| !d.done);
         let drawn: Vec<[f32; 3]> = (0..rows.len()).map(|i| { let p = fd.springs[&rows[i].entry.id].p; [p[0], p[1] + shift[i], p[2]] }).collect();
         // The receiving folder's wash springs to its subtree's bounds and fades in and out.
         let zone = receiving.zip(receiving_end).map(|(start, end)| {
             let top = drawn[start][1];
-            let mut bottom = (start..end).map(|i| drawn[i][1] + crate::sidebar::ROW_H).fold(top, f32::max);
-            if let Some((index, _)) = slot && index > start && index <= end { bottom = bottom.max(index as f32 * PITCH + crate::sidebar::ROW_H); }
+            let mut bottom = (start..end).map(|i| drawn[i][1] + metrics().nav_height).fold(top, f32::max);
+            if let Some((index, _)) = slot && index > start && index <= end { bottom = bottom.max(index as f32 * row_pitch() + metrics().nav_height); }
             let x = rows[start].depth as f32 * INDENT;
             [x - 3., top - 3., width - x + 3., bottom - top + 6.]
         });
@@ -657,7 +657,7 @@ impl Workspace {
             if !m && a.to == 0. { fd.zone = None; }
         }
         // The slot the row will land in.
-        let slot_target = slot.map(|(index, depth)| [depth as f32 * INDENT, index as f32 * PITCH, width - depth as f32 * INDENT - if receiving.is_some() { 8. } else { 0. }]);
+        let slot_target = slot.map(|(index, depth)| [depth as f32 * INDENT, index as f32 * row_pitch(), width - depth as f32 * INDENT - if receiving.is_some() { 8. } else { 0. }]);
         match (slot_target, &mut fd.slot) {
             (Some(t), Some((s, a))) => { if a.p < 0.02 { *s = Spring::new(t); } s.target = t; a.to = 1.; }
             (Some(t), None) => fd.slot = Some((Spring::new(t), QUICK.from(0., 1.))),
@@ -690,8 +690,8 @@ impl Workspace {
 
         // ---- Build the elements, back to front.
         let fd = &self.folder_drag;
-        let row_h = px(crate::sidebar::ROW_H);
-        let radius = px(crate::sidebar::ROW_R);
+        let row_h = px(metrics().nav_height);
+        let radius = px(metrics().nav_radius);
         // Clip `el` (drawn at x, y, w) to a drawer's band, or draw it as is.
         let clipped = |el: Stateful<Div>, x: f32, y: f32, w: f32, band: Option<(f32, f32)>| -> AnyElement {
             match band {
@@ -700,7 +700,7 @@ impl Workspace {
                     .child(el.absolute().left_0().top(px(y - lo)).w(px(w))).into_any_element(),
             }
         };
-        let mut container = div().relative().w_full().h(px(((rows.len() + usize::from(slot.is_some())) as f32 * PITCH + extra).max(0.)))
+        let mut container = div().relative().w_full().h(px(((rows.len() + usize::from(slot.is_some())) as f32 * row_pitch() + extra).max(0.)))
             .child({ let b = fd.bounds.clone(); canvas(move |bounds, _, _| b.set(Some(bounds)), |_, _, _, _| {}).absolute().inset_0() });
         for l in fd.leaving.values() {
             let [x, y, w] = l.pos.p;
@@ -716,7 +716,7 @@ impl Workspace {
         if let Some((s, a)) = &fd.zone {
             let [x, y, w, h] = s.p;
             let a = a.unit();
-            container = container.child(div().absolute().left(px(x)).top(px(y)).w(px(w)).h(px(h)).rounded(px(crate::sidebar::ROW_R + 3.))
+            container = container.child(div().absolute().left(px(x)).top(px(y)).w(px(w)).h(px(h)).rounded(px(metrics().nav_radius + 3.))
                 .bg(Theme::sidebar_drop().opacity(a)));
         }
         if let Some((id, t)) = &dwell && let Some(&i) = index.get(id.as_str()) {
@@ -750,7 +750,7 @@ impl Workspace {
             let lift = fx.lift.unit();
             // A landing card is never clipped: it is still above the list.
             let band = clip[i].filter(|_| lift < 0.005);
-            if band.is_some_and(|(lo, hi)| hi - lo < 0.5 || y >= hi || y + PITCH <= lo) { continue; }
+            if band.is_some_and(|(lo, hi)| hi - lo < 0.5 || y >= hi || y + row_pitch() <= lo) { continue; }
             let a = reveal[i];
             let hid = id.clone();
             let el = div().id(SharedString::from(format!("frow-{id}"))).h(row_h)
@@ -828,7 +828,7 @@ impl Workspace {
             let [x, y, width] = d.ghost.p;
             let l = d.lift.p.max(0.);
             let inside = d.excluded.len().saturating_sub(1);
-            layer = layer.child(div().absolute().left(px(x - 3. * l)).top(px(y - l)).w(px(width + 6. * l)).h(px(crate::sidebar::ROW_H)).pr(px(6.)).rounded(px(crate::sidebar::ROW_R))
+            layer = layer.child(div().absolute().left(px(x - 3. * l)).top(px(y - l)).w(px(width + 6. * l)).h(px(metrics().nav_height)).pr(px(6.)).rounded(px(metrics().nav_radius))
                 .bg(theme::raised(Theme::bg_body())).shadow(faded(theme::shadow_panel(), l.min(1.))).flex().items_center().text_color(Theme::text())
                 .child(row_face(e, self.expanded.contains(&e.id)).flex_1().min_w_0().pl(px(6. + 3. * l)))
                 .when(inside > 0, |g| g.child(div().flex_none().h(px(18.)).min_w(px(18.)).px(px(5.)).rounded(px(9.)).flex().items_center().justify_center()

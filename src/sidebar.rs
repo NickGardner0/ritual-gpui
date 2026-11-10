@@ -1,7 +1,8 @@
 //! Left pane: document list with search. Rows, sections and footer, sunken:
 //! no panel, border or shadow, straight on the window surface (only the note
-//! floats). 30pt rows on a 31pt pitch, selection pill radius 9.
+//! floats). The document tree and navigation share row geometry.
 
+use crate::ui::design::metrics;
 use crate::app::{Confirm, RowMenu, View, Workspace};
 use crate::settings::display_title;
 use crate::store::Entry;
@@ -9,27 +10,16 @@ use crate::theme::{self, Theme, craft};
 use crate::ui::{TipExt, TitleBarExt, icon, popover, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 
-/// Row "…" menu geometry: 32pt rows, 11pt dividers, 6pt padding inside
-/// a 1pt border.
 const ROW_MENU_W: f32 = 180.;
-const ROW_ITEM: f32 = crate::ui::MENU_ROW_H;
 const ROW_DIVIDER: f32 = 11.;
 
 fn row_menu_height(items: usize, dividers: usize) -> f32 {
-    2. + crate::ui::MENU_PAD_Y * 2. + items as f32 * ROW_ITEM + dividers as f32 * ROW_DIVIDER
+    2. + crate::ui::MENU_PAD_Y * 2. + items as f32 * metrics().menu_height + dividers as f32 * ROW_DIVIDER
 }
 
-/// Sidebar geometry (measured from the window edge), shared by the
-/// document sidebar and 设置's: selection pills start 14pt in, every row is
-/// 30pt with radius 9 on a 31pt pitch, glyphs (18pt) centre at 37pt and
-/// labels start at 54pt; groups are 16pt apart, a section header is 34pt
-/// (6 above its 28pt label).
+/// Shared by document navigation, Settings and animated drag targets.
 pub(crate) const SB_X: f32 = 14.;
-pub(crate) const ROW_H: f32 = 30.;
-const DOC_ROW_H: f32 = ROW_H;
-pub(crate) const ROW_R: f32 = 9.;
-pub(crate) const ROW_GAP: f32 = 1.;
-pub(crate) const ROW_ICON: f32 = 18.;
+pub(crate) fn row_pitch() -> f32 { metrics().nav_height + metrics().nav_gap }
 pub(crate) const GROUP_GAP: f32 = 16.;
 pub(crate) const SECTION_H: f32 = 34.;
 pub(crate) const SECTION_TOP: f32 = 6.;
@@ -42,18 +32,18 @@ pub(crate) const BATCH_LIMIT: usize = 50;
 pub(crate) fn footer_row(id: &'static str, glyph: &'static str, label: &'static str) -> Stateful<Div> {
     div()
         .id(id)
-        .h(px(ROW_H))
+        .h(px(metrics().nav_height))
         .pl(px(6.))
         .pr(px(4.))
         .flex()
         .items_center()
-        .rounded(px(ROW_R))
+        .rounded(px(metrics().nav_radius))
         .cursor_pointer()
         .text_size(px(13.))
         .line_height(px(20.))
         .text_color(Theme::sidebar_text())
         .hover(|s| s.bg(Theme::sidebar_hover()))
-        .child(div().size(px(20.)).flex_none().flex().items_center().justify_center().mr(px(9.)).child(icon(glyph, ROW_ICON, Theme::icon())))
+        .child(div().size(px(20.)).flex_none().flex().items_center().justify_center().mr(px(9.)).child(icon(glyph, metrics().nav_icon, Theme::icon())))
         .child(label)
 }
 
@@ -139,12 +129,12 @@ impl Workspace {
         let nav = div().flex_none().pt(px(4.)).pb(px(4.)).px(px(SB_X)).child(
             div()
                 .id("nav-home")
-                .h(px(ROW_H))
+                .h(px(metrics().nav_height))
                 .pl(px(6.))
                 .pr(px(4.))
                 .flex()
                 .items_center()
-                .rounded(px(ROW_R))
+                .rounded(px(metrics().nav_radius))
                 .cursor_pointer()
                 .text_size(px(13.))
                 .line_height(px(20.))
@@ -154,7 +144,7 @@ impl Workspace {
                     // Selected or not, the same outline: the row's fill marks the selection.
                     div().size(px(20.)).flex_none().flex().items_center().justify_center().mr(px(9.)).child(icon(
                         "home",
-                        ROW_ICON,
+                        metrics().nav_icon,
                         Theme::icon(),
                     )),
                 )
@@ -339,12 +329,12 @@ impl Workspace {
             div()
                 .id(id)
                 .flex_none()
-                .size(px(22.))
-                .p(px(3.))
-                .rounded(px(6.))
+                .size(px(metrics().inline_target))
+                .flex().items_center().justify_center()
+                .rounded(px(metrics().row_radius))
                 .cursor_pointer()
                 .hover(|s| s.bg(Theme::sidebar_hover()))
-                .child(icon(name, 16., Theme::icon()))
+                .child(icon(name, metrics().menu_icon, Theme::icon()))
         };
         let create_open = self.create_menu.is_some();
         let row = div().h(px(SECTION_H)).pl(px(4.)).pt(px(SECTION_TOP)).flex().items_center().group(group.clone());
@@ -388,10 +378,10 @@ impl Workspace {
                 // Keyed by state so the tooltip is rebuilt after a toggle.
                 .id(SharedString::from(format!("section-title-{idx}-{folded}")))
                 .px(px(4.))
-                .h(px(22.))
+                .h(px(metrics().inline_target))
                 .flex()
                 .items_center()
-                .rounded(px(6.))
+                .rounded(px(metrics().row_radius))
                 .cursor_pointer()
                 .hover(|s| s.bg(Theme::sidebar_hover()))
                 .tip(if folded { crate::settings::text("点击展开") } else { crate::settings::text("点击折叠") }, None)
@@ -484,8 +474,8 @@ impl Workspace {
         div()
             .id(SharedString::from(format!("{key}-{}", e.id)))
             .group("doc-row")
-            .mb(px(ROW_GAP))
-            .rounded(px(ROW_R))
+            .mb(px(metrics().nav_gap))
+            .rounded(px(metrics().nav_radius))
             .cursor_pointer()
             .on_mouse_down(
                 MouseButton::Left,
@@ -529,17 +519,17 @@ impl Workspace {
         div()
             .id(SharedString::from(format!("more-{slot}")))
             .relative()
-            .size(px(22.))
+            .size(px(metrics().inline_target))
             .mr(px(4.))
             .flex_none()
             .flex()
             .items_center()
             .justify_center()
-            .rounded(px(6.))
+            .rounded(px(metrics().row_radius))
             .when(!open, |d| match reveal { Some(a) => d.opacity(a), None => d.opacity(0.).group_hover("doc-row", |s| s.opacity(1.)) })
             .when(open, |d| d.bg(Theme::sidebar_selected()))
             .hover(|s| s.bg(Theme::sidebar_selected()))
-            .child(icon("ellipsis", 15., Theme::icon()))
+            .child(icon("ellipsis", metrics().menu_icon, Theme::icon()))
             .child(canvas(move |b, _, _| record.borrow_mut().insert(slot.clone(), b), |_, _, _, _| {}).absolute().inset_0())
             .on_mouse_down(
                 MouseButton::Left,
@@ -559,13 +549,13 @@ impl Workspace {
         let id = e.id.clone();
         div()
             .id(SharedString::from(format!("add-{key}-{folder}-{}", e.id)))
-            .size(px(22.))
-            .p(px(3.))
+            .size(px(metrics().inline_target))
+            .flex().items_center().justify_center()
             .flex_none()
-            .rounded(px(6.))
+            .rounded(px(metrics().row_radius))
             .opacity(self.folder_drag.reveal(&e.id))
             .hover(|s| s.bg(Theme::sidebar_selected()))
-            .child(icon(if folder { "folder-plus" } else { "plus" }, 16., Theme::icon()))
+            .child(icon(if folder { "folder-plus" } else { "plus" }, metrics().menu_icon, Theme::icon()))
             .tip(crate::settings::tr(if folder { "新建文件夹" } else { "新建文档" }, if folder { "New folder" } else { "New document" }), None)
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_click(cx.listener(move |w, _, window, cx| {
@@ -588,7 +578,7 @@ impl Workspace {
             // Both layers overflow without taking layout space, and fade in together.
             Some(field) => {
                 let a = self.folder_drag.rename_in(&e.id);
-                let r = ROW_R - 2.;
+                let r = metrics().nav_radius - 2.;
                 div()
                     .ml(px(2.))
                     .mr(px(4.))
@@ -618,7 +608,7 @@ impl Workspace {
                 .flex_1()
                 .min_w_0()
                 .text_size(px(13.))
-                .line_height(px(DOC_ROW_H))
+                .line_height(px(metrics().nav_height))
                 .overflow_hidden()
                 .whitespace_nowrap()
                 .text_ellipsis()
@@ -633,7 +623,7 @@ impl Workspace {
         let checked = batch.is_some_and(|b| b.contains(&e.id));
         let blocked = batch.is_some_and(|b| !checked && b.len() >= BATCH_LIMIT);
         self.row_base(e, key, cx)
-            .h(px(DOC_ROW_H))
+            .h(px(metrics().nav_height))
             .w_full()
             .flex()
             .items_center()
@@ -672,15 +662,15 @@ impl Workspace {
                     _ if folder => {
                         let s = if key == "doc" { self.folder_drag.pop(&e.id) } else { 1. };
                         d.child(div().absolute().inset_0().flex().items_center().justify_center().opacity(1. - chevron)
-                            .child(icon(if drop_target { "folder-input" } else if open { "folder-open" } else { "folder" }, ROW_ICON, Theme::icon())
+                            .child(icon(if drop_target { "folder-input" } else if open { "folder-open" } else { "folder" }, metrics().nav_icon, Theme::icon())
                                 .with_transformation(Transformation::scale(size(s, s)))))
                         .when(chevron > 0.005, |d| d.child(div().absolute().inset_0().flex().items_center().justify_center().opacity(chevron)
-                            .child(icon("disclosure", ROW_ICON, Theme::icon())
+                            .child(icon("disclosure", metrics().nav_icon, Theme::icon())
                                 .with_transformation(Transformation::rotate(radians(if open { std::f32::consts::FRAC_PI_2 } else { 0. }))))))
                     }
-                    _ if e.meta.markdown => d.child(icon("doc-md", ROW_ICON, Theme::icon())),
+                    _ if e.meta.markdown => d.child(icon("doc-md", metrics().nav_icon, Theme::icon())),
                     Some(em) => d.text_size(px(13.)).line_height(px(20.)).child(em.clone()),
-                    None => d.child(icon("doc", ROW_ICON, Theme::icon())),
+                    None => d.child(icon("doc", metrics().nav_icon, Theme::icon())),
                 })
             })
             .child(title)
@@ -701,7 +691,7 @@ impl Workspace {
             crate::ui::menu_row(id, g.clone())
                 .mx(px(0.))
                 .text_color(color)
-                .child(icon(ic, 16., icon_color))
+                .child(icon(ic, metrics().menu_icon, icon_color))
                 .child(div().flex_1().min_w_0().child(crate::ui::menu_label(label, g, gpui::white())))
         };
         let item = |id, ic, label| item_c(id, ic, label, Theme::text(), Theme::icon());
@@ -719,7 +709,7 @@ impl Workspace {
                     w.row_menu = None;
                     cx.notify();
                 }))
-                .child(div().h(px(ROW_ITEM)).px(px(8.)).flex().items_center().text_size(px(12.)).text_color(Theme::text_placeholder()).child(crate::localized_format!("已选 {n} 项", "Selected: {n}")))
+                .child(div().h(px(metrics().menu_height)).px(px(8.)).flex().items_center().text_size(px(12.)).text_color(Theme::text_placeholder()).child(crate::localized_format!("已选 {n} 项", "Selected: {n}")))
                 .child(item("bm-copy", "copy", crate::settings::text("创建副本")).on_click(cx.listener(|w, _, _, cx| w.batch_copy(cx))))
                 .child(item("bm-move", "folder-input", crate::settings::text("移动到")).on_click(cx.listener(|w, _, window, cx| w.batch_move(window, cx))))
                 .child(item("bm-delete", "bin", crate::settings::text("删除")).on_click(cx.listener(|w, _, _, cx| w.ask_batch_delete(cx))));
@@ -831,7 +821,7 @@ impl Workspace {
             let record = self.row_sub_bounds.clone();
             record.set(None);
             // Level the submenu's first item with 下载 (the 5th item, after one divider).
-            let top = menu_top + 4. * ROW_ITEM + ROW_DIVIDER;
+            let top = menu_top + 4. * metrics().menu_height + ROW_DIVIDER;
             let left = match corner {
                 Corner::TopRight | Corner::BottomRight => origin.x - px(ROW_MENU_W),
                 _ => origin.x,

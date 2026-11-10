@@ -8,7 +8,7 @@ use crate::search::doc_icon;
 use crate::store::{TRASH_DAYS, TrashEntry};
 pub(crate) use crate::ui::{close_button, dialog, list_header_text, list_line, menu_label, primary_button, row_hover, scrim, secondary_button};
 use crate::theme::{self, Theme, craft};
-use crate::ui::{ROW_RADIUS, TipExt, TitleBarExt, icon, popover, ui_para, ui_text};
+use crate::ui::{TipExt, TitleBarExt, icon, popover, ui_para, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 
 pub const TRASH_MENU_W: f32 = 160.;
@@ -159,7 +159,7 @@ impl Workspace {
                     .items_center()
                     .when(i > 0, |d| d.border_t_1().border_color(list_line()))
                     .hover(row_hover)
-                    .when(menu_open, |d| d.bg(Theme::fill_hover()).border_color(transparent_black()).rounded(px(ROW_RADIUS)))
+                    .when(menu_open, |d| d.bg(Theme::fill_hover()).border_color(transparent_black()).rounded(px(crate::ui::design::metrics().row_radius)))
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |w, ev: &MouseDownEvent, _, cx| {

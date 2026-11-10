@@ -412,7 +412,9 @@ impl Theme {
     pub fn icon() -> Hsla { workspace_color!(icon, if dark() { ca(craft::N900, 0.6) } else { rgb(0x191919).into() }) }
     /// Line above the sidebar footer (1pt, black 3.5%, #E8E8E9 on the sidebar).
     /// Line under the page title.
-    /// White pill buttons on the note (back / + / share): hairline.
+    pub fn button_hover() -> Hsla { workspace_color!(hover, c(craft::N100)) }
+    pub fn button_pressed() -> Hsla { workspace_color!(pressed, c(craft::N200)) }
+    /// Hairline used by secondary buttons.
     pub fn button_border() -> Hsla { workspace_color!(border, ca(craft::N1000, 0.075)) }
     /// Inline code chip: #F8F8F8 in a #E2E3E3 rim (measured).
     pub fn code_chip() -> Hsla { c(0xf8f8f8) }

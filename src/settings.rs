@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 
+use crate::ui::design::metrics;
 mod appearance;
 pub(crate) use appearance::Picker as AppearancePicker;
 use crate::ritual::appearance as workspace_theme;
@@ -300,7 +301,7 @@ pub(crate) fn group(title: Option<&'static str>, rows: Vec<AnyElement>) -> Div {
     let n = rows.len();
     div().w_full().flex().flex_col().gap(px(8.))
         .children(title.map(caption))
-        .child(div().w_full().flex().flex_col().rounded(px(12.)).border_1().border_color(Theme::line_border()).bg(crate::theme::raised(Theme::bg_body())).overflow_hidden()
+        .child(div().w_full().flex().flex_col().rounded(px(metrics().menu_radius)).border_1().border_color(Theme::line_border()).bg(crate::theme::raised(Theme::bg_body())).overflow_hidden()
             .children(rows.into_iter().enumerate().map(move |(i, r)| div().w_full().flex().flex_col().when(i + 1 < n, |d| d.border_b_1().border_color(ui::list_line())).child(r))))
 }
 
@@ -329,10 +330,10 @@ pub(crate) fn switch(id: impl Into<ElementId>, on: bool) -> Stateful<Div> {
 
 /// A segmented control: a grey groove and a white selected pill.
 fn segmented(id: &'static str, labels: &[&'static str], selected: usize, on: impl Fn(&mut Workspace, usize, &mut Context<Workspace>) + Clone + 'static, cx: &mut Context<Workspace>) -> Div {
-    div().flex_none().h(px(28.)).p(px(2.)).flex().gap(px(2.)).rounded(px(9.)).bg(workspace_theme::palette().map_or_else(Theme::fill_hover_strong, |p| p.hover))
+    div().flex_none().h(px(metrics().small_control_height)).p(px(2.)).flex().gap(px(2.)).rounded(px(metrics().control_radius)).bg(workspace_theme::palette().map_or_else(Theme::fill_hover_strong, |p| p.hover))
         .children(labels.iter().enumerate().map(|(i, label)| {
             let on = on.clone();
-            div().id((id, i)).h_full().px(px(12.)).flex().items_center().justify_center().rounded(px(7.)).cursor_pointer()
+            div().id((id, i)).h_full().px(px(12.)).flex().items_center().justify_center().rounded(px(metrics().control_radius - 2.)).cursor_pointer()
                 .text_size(px(13.)).line_height(px(18.))
                 // In dark mode the picked segment is lighter than the groove (macOS: #636366).
                 .when(i == selected, |d| d.bg(workspace_theme::palette().map_or_else(|| if theme::dark() { theme::rgbaf(0x63, 0x63, 0x66, 1.) } else { Theme::bg_body() }, |p| p.selected)).shadow(theme::shadow_button()).text_color(Theme::text()))
@@ -358,9 +359,9 @@ pub(crate) fn link_button(id: impl Into<ElementId>, label: &'static str) -> Stat
 }
 
 pub(crate) fn button(id: impl Into<ElementId>, label: &'static str) -> Stateful<Div> {
-    div().id(id).flex_none().h(px(28.)).px(px(12.)).flex().items_center().justify_center().rounded(px(8.)).cursor_pointer()
+    div().id(id).flex_none().h(px(metrics().small_control_height)).px(px(12.)).flex().items_center().justify_center().rounded(px(metrics().control_radius)).cursor_pointer()
         .bg(crate::theme::raised(Theme::bg_body())).border_1().border_color(Theme::button_border()).shadow(theme::shadow_button())
-        .hover(|s| s.bg(theme::c(craft::N100))).active(|s| s.bg(theme::c(craft::N200)))
+        .hover(|s| s.bg(Theme::button_hover())).active(|s| s.bg(Theme::button_pressed()))
         .text_size(px(13.)).line_height(px(18.)).text_color(Theme::text()).child(label)
 }
 
@@ -483,9 +484,9 @@ fn badge(t: &themes::Theme) -> Option<&'static str> {
 
 /// A pop-up button (macOS): the current choice and a chevron on `button`'s white pill.
 fn popup_button(id: impl Into<ElementId>, label: impl Into<SharedString>, open: bool) -> Stateful<Div> {
-    div().id(id).flex_none().max_w(px(220.)).h(px(28.)).pl(px(12.)).pr(px(8.)).flex().items_center().gap(px(6.)).rounded(px(8.)).cursor_pointer()
-        .bg(if open { theme::c(craft::N100) } else { Theme::bg_body() }).border_1().border_color(Theme::button_border()).shadow(theme::shadow_button())
-        .hover(|s| s.bg(theme::c(craft::N100))).active(|s| s.bg(theme::c(craft::N200)))
+    div().id(id).flex_none().max_w(px(220.)).h(px(metrics().small_control_height)).pl(px(12.)).pr(px(8.)).flex().items_center().gap(px(6.)).rounded(px(metrics().control_radius)).cursor_pointer()
+        .bg(if open { Theme::button_hover() } else { Theme::bg_body() }).border_1().border_color(Theme::button_border()).shadow(theme::shadow_button())
+        .hover(|s| s.bg(Theme::button_hover())).active(|s| s.bg(Theme::button_pressed()))
         .text_size(px(13.)).line_height(px(18.)).text_color(Theme::text())
         .child(div().min_w_0().truncate().child(label.into()))
         .child(ui::icon("chevron-down", 12., Theme::icon()))
@@ -619,24 +620,21 @@ impl Workspace {
         let nav_row = |page: Option<Page>, cx: &mut Context<Self>| {
             let on = if page.is_some() { page == current } else { in_trash };
             let (title, icon) = page.map_or((tr("回收站", "Trash"), "bin"), |p| (p.title(), p.icon()));
-            div().id(SharedString::from(format!("settings-nav-{page:?}"))).h(px(sb::ROW_H)).flex().items_center().pl(px(6.)).pr(px(4.)).rounded(px(sb::ROW_R))
+            div().id(SharedString::from(format!("settings-nav-{page:?}"))).h(px(metrics().nav_height)).flex().items_center().pl(px(6.)).pr(px(4.)).rounded(px(metrics().nav_radius))
                 .text_size(px(13.)).line_height(px(20.)).cursor_pointer()
                 .when(on, |d| d.bg(Theme::sidebar_selected()).text_color(Theme::text()))
                 .when(!on, |d| d.text_color(Theme::sidebar_text()).hover(|s| s.bg(Theme::sidebar_hover())))
-                .child(div().size(px(20.)).flex_none().flex().items_center().justify_center().mr(px(9.)).child(ui::icon(icon, sb::ROW_ICON, Theme::icon())))
+                .child(div().size(px(20.)).flex_none().flex().items_center().justify_center().mr(px(9.)).child(ui::icon(icon, metrics().nav_icon, Theme::icon())))
                 .child(title)
                 .on_click(cx.listener(move |w, _, _, cx| match page { Some(p) => w.open_settings(p, cx), None => w.show_view(View::Trash, cx) }))
         };
         div().w(px(self.sidebar_w(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::ui_font())
             .child(div().h(px(crate::app::HEADER_H)).flex_none().flex().items_center().pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(12.)).title_bar().child(self.header_navigation(cx))
                 .child(div().flex_1()).children(update_pill(cx)))
-            // The document sidebar's rhythm: 主页 sits 8 under the bar, a section
-            // header like 我的文档's, rows on a 31 pitch. 设置's line sits on
-            // 主页's, not a section header's: the 34pt box keeps the rows below.
             .child(div().pt(px(8.)).px(px(sb::SB_X)).flex().flex_col()
-                .child(div().h(px(sb::SECTION_H)).pl(px(4.)).pt(px((sb::SECTION_TOP + sb::SECTION_H) / 2. - sb::ROW_H / 2.))
+                .child(div().h(px(sb::SECTION_H)).pl(px(4.)).pt(px((sb::SECTION_TOP + sb::SECTION_H) / 2. - metrics().nav_height / 2.))
                     .child(div().px(px(4.)).text_size(px(13.)).line_height(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(Theme::sidebar_section()).child(tr("设置", "Settings"))))
-                .child(div().flex().flex_col().gap(px(sb::ROW_GAP)).children(NAV.iter().map(|p| nav_row(*p, cx)).collect::<Vec<_>>())))
+                .child(div().flex().flex_col().gap(px(metrics().nav_gap)).children(NAV.iter().map(|p| nav_row(*p, cx)).collect::<Vec<_>>())))
             // Where 设置 was: 返回, back to the page 设置 was opened from.
             .child(div().flex_1())
             .child(sb::footer_slot(sb::footer_row("ft-back", "arrow-left", tr("返回", "Back")).tip(tr("返回", "Back"), Some("Esc"))

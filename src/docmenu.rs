@@ -20,13 +20,12 @@ const MENU_W: f32 = 200.;
 /// Gap between the "…" button and the menu.
 const MENU_GAP: f32 = 6.;
 /// Rows: 32 tall; dividers 1px with 5px either side; 6px padding.
-const ROW_H: f32 = crate::ui::MENU_ROW_H;
 const DIV_H: f32 = 11.;
 const PAD: f32 = crate::ui::MENU_PAD_Y;
 
 /// Offset of item `k`'s row from the menu's top with `dividers` divider rows above it.
 fn item_top(k: usize, dividers: usize) -> f32 {
-    1. + PAD + ROW_H * k as f32 + DIV_H * dividers as f32
+    1. + PAD + crate::ui::design::metrics().menu_height * k as f32 + DIV_H * dividers as f32
 }
 
 fn menu_item(id: &'static str, ic: &'static str, label: impl Into<SharedString>, sub: bool, open: bool) -> Stateful<Div> {
@@ -34,7 +33,7 @@ fn menu_item(id: &'static str, ic: &'static str, label: impl Into<SharedString>,
     crate::ui::menu_row(id, g.clone())
         // A row whose submenu is open keeps the hover fill.
         .when(open, |d| d.bg(Theme::fill_hover()))
-        .child(crate::ui::menu_glyph(ic, 16., g.clone()))
+        .child(crate::ui::menu_glyph(ic, crate::ui::design::metrics().menu_icon, g.clone()))
         .child(div().flex_1().min_w_0().overflow_hidden().child(crate::ui::menu_label(label, g.clone(), gpui::white())))
         .when(sub, |d| d.child(crate::ui::menu_glyph("chevron-right", 10., g)))
 }

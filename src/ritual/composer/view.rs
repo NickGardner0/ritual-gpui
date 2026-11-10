@@ -1,3 +1,4 @@
+use crate::ui::design::RITUAL;
 use super::*;
 use crate::input;
 use crate::{theme::{self, Theme}, ui::{self, TipExt}};
@@ -18,7 +19,7 @@ fn tab_stop(button: Stateful<Div>, index: isize) -> Stateful<Div> {
 }
 
 fn control(id: &'static str, icon: &'static str, hint: &'static str) -> Stateful<Div> {
-    tab_stop(div().id(id), 2).size(px(28.)).flex_none().flex().items_center().justify_center().rounded(px(6.))
+    tab_stop(div().id(id), 2).size(px(RITUAL.control_height)).flex_none().flex().items_center().justify_center().rounded(px(RITUAL.control_radius))
         .cursor_pointer().hover(|s| s.bg(Theme::fill_hover_strong())).tip(hint,None)
         .child(glyph(icon, 15., Theme::text_caption()))
 }
@@ -68,8 +69,9 @@ impl Composer {
             .child(div().flex().flex_1().min_w(px(2. * ACTION_SIZE + 8.)).items_center().justify_end().gap(px(8.)).child(voice).child(send));
 
         // Desktop's idle panel is 104pt: 12 top + 50 writing area + 32 actions + 10 bottom.
-        div().relative().w_full().flex_none().flex().flex_col().rounded(px(12.)).bg(colors.surface)
-            .pl(px(16.)).pr(px(12.)).pt(px(12.)).pb(px(10.))
+        div().relative().w_full().flex_none().flex().flex_col().rounded(px(RITUAL.dialog_radius)).bg(colors.surface)
+            .border_1().border_color(Theme::line_border())
+            .pl(px(15.)).pr(px(11.)).pt(px(11.)).pb(px(9.))
             .when(self.context_open, |panel| panel.child(self.context_list(cx)))
             .when(draft.habit.is_some() || draft.attachment.is_some(), |panel| panel.child(
                 div().flex().flex_wrap().gap(px(4.)).pb(px(6.))
@@ -93,13 +95,12 @@ impl Composer {
 
     fn context_list(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let mut items = div().id("composer-context-list").max_h(px(142.)).overflow_y_scroll().pb(px(5.))
-            .child(tab_stop(div().id("attach-file"), 2).h(px(28.)).flex().gap(px(8.)).items_center().px(px(6.)).rounded(px(4.))
-                .cursor_pointer().hover(|s|s.bg(Theme::fill_hover())).child(glyph("paperclip",14.,Theme::icon())).child("Attach a file…")
+            .child(tab_stop(crate::ui::option_row("attach-file"), 2)
+                .child(glyph("paperclip",RITUAL.menu_icon,Theme::icon())).child("Attach a file…")
                 .on_click(cx.listener(|p,_,w,cx|p.attach(w,cx))));
         if !self.expanded {
-            items = items.child(tab_stop(div().id("composer-expand"), 2).h(px(28.)).px(px(6.)).flex().items_center()
-                .gap(px(8.)).rounded(px(4.)).cursor_pointer().hover(|s| s.bg(Theme::fill_hover()))
-                .child(glyph("maximize-2", 14., Theme::icon())).child("Expand composer")
+            items = items.child(tab_stop(crate::ui::option_row("composer-expand"), 2)
+                .child(glyph("maximize-2", RITUAL.menu_icon, Theme::icon())).child("Expand composer")
                 .on_click(cx.listener(|composer, _, window, cx| composer.expand(window, cx))));
         }
         let rows = &self.habits.read(cx).habits;
@@ -109,8 +110,8 @@ impl Composer {
         for h in rows {
             let name = h.habit.name.clone();
             let id = h.habit.id;
-            items = items.child(tab_stop(div().id(SharedString::from(id.to_string())), 2).px(px(6.)).h(px(26.)).flex().gap(px(8.)).items_center()
-                .rounded(px(4.)).cursor_pointer().hover(|s|s.bg(Theme::fill_hover())).child(glyph("list-todo",14.,Theme::icon()))
+            items = items.child(tab_stop(crate::ui::option_row(SharedString::from(id.to_string())), 2)
+                .child(glyph("list-todo",RITUAL.menu_icon,Theme::icon()))
                 .child(name.clone()).on_click(cx.listener(move |p,_,w,cx| {
                     p.drafts_mut().input.habit=Some((id,name.clone())); p.context_open=false; p.focus_input(w,cx); cx.notify();
                 })));
@@ -131,8 +132,8 @@ impl Composer {
                 list = list.child(div().pb(px(5.)).text_size(px(11.)).text_color(Theme::text_caption()).child("Try a draft"));
             }
             for (i,suggestion) in suggestions.into_iter().enumerate() {
-                list = list.child(div().id(("try-draft",i)).px(px(6.)).h(px(28.)).flex().items_center().gap(px(8.))
-                    .rounded(px(4.)).when(can_edit, |d|tab_stop(d, 2).cursor_pointer().hover(|s|s.bg(Theme::fill_hover()))
+                list = list.child(div().id(("try-draft",i)).px(px(6.)).h(px(RITUAL.menu_height)).flex().items_center().gap(px(RITUAL.icon_gap))
+                    .rounded(px(RITUAL.row_radius)).when(can_edit, |d|tab_stop(d, 2).cursor_pointer().hover(|s|s.bg(Theme::fill_hover()))
                         .on_click(cx.listener({
                             let suggestion = suggestion.clone();
                             move |composer, _, window, cx| composer.use_suggestion(&suggestion, window, cx)
@@ -190,7 +191,7 @@ impl Render for Composer {
             .on_mouse_down(MouseButton::Left,|_,_,cx|cx.stop_propagation());
         if !self.expanded { return base.child(self.input_panel(&colors, cx)); }
         let height = (f32::from(w.viewport_size().height)-32.).min(360.);
-        base.mx(px(16.)).h(px(height)).rounded(px(10.)).flex().flex_col().occlude().overflow_hidden()
+        base.mx(px(16.)).h(px(height)).rounded(px(RITUAL.dialog_radius)).flex().flex_col().occlude().overflow_hidden()
             .border_1().border_color(Theme::line_border()).bg(Theme::bg_body()).shadow(theme::shadow_dialog())
             .child(div().h(px(40.)).flex_none().px(px(12.)).border_b_1().border_color(Theme::line_border())
                 .flex().items_center().gap(px(8.)).child(glyph("pen-line",16.,Theme::icon()))

@@ -118,19 +118,18 @@ impl Picker {
 impl Render for Picker {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let len = self.filtered.len();
-        let height = px((len.clamp(1, 8) * 28) as f32);
-        let contents = ui::popover().id("workspace-theme-options").w(px(244.)).flex().flex_col().occlude()
+        let height = px(len.clamp(1, 8) as f32 * metrics().menu_height);
+        let contents = ui::popover().id("workspace-theme-options").w(px(256.)).flex().flex_col().occlude()
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().flex().h(px(36.)).items_center().gap(px(6.)).px(px(10.)).border_b_1().border_color(Theme::line_border())
-                .child(ui::icon("search", 14., Theme::icon())).child(self.query.clone()))
+            .child(div().flex().h(px(40.)).flex_none().items_center().gap(px(6.)).px(px(10.)).border_b_1().border_color(Theme::line_border())
+                .child(ui::icon("search", metrics().menu_icon, Theme::icon())).child(self.query.clone()))
             .when(len == 0, |d| d.child(div().px(px(12.)).py(px(9.)).text_color(Theme::text_caption()).child(tr("没有匹配项", "No matches"))))
-            .when(len > 0, |d| d.child(uniform_list("workspace-theme-rows", len, cx.processor(|p, range: std::ops::Range<usize>, _, cx| {
+            .when(len > 0, |d| d.child(div().p(px(ui::MENU_PAD_Y)).child(uniform_list("workspace-theme-rows", len, cx.processor(|p, range: std::ops::Range<usize>, _, cx| {
                 range.map(|index| {
                     let i = p.filtered[index];
                     let name = p.names[i].clone();
-                    div().id(("workspace-theme-row", i)).w_full().h(px(28.)).px(px(4.)).px(px(8.)).flex().items_center().gap(px(8.))
-                        .rounded(px(4.)).cursor_pointer().when(p.active == index, |d| d.bg(Theme::fill_hover_strong()))
-                        .hover(|s| s.bg(Theme::fill_hover())).text_size(px(13.)).text_color(Theme::text())
+                    ui::option_row(("workspace-theme-row", i)).w_full()
+                        .when(p.active == index, |d| d.bg(Theme::fill_hover_strong()))
                         .when_some(workspace_theme::palette_named(&name), |d, palette| d.child(div().size(px(12.)).rounded(px(3.))
                             .border_1().border_color(palette.accent).bg(palette.page)))
                         .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child(p.labels[i].clone()))
@@ -138,8 +137,8 @@ impl Render for Picker {
                         .on_mouse_down(MouseButton::Left, |_, w, _| w.prevent_default())
                         .on_click(cx.listener(move |_, _, _, cx| cx.emit(Chosen(Some(name.clone())))))
                 }).collect()
-            })).w_full().h(height).track_scroll(self.scroll.clone())));
-        let above = self.anchor.bottom() + height + px(48.) > window.viewport_size().height && self.anchor.top() > height + px(40.);
+            })).w_full().h(height).track_scroll(self.scroll.clone()))));
+        let above = self.anchor.bottom() + height + px(56.) > window.viewport_size().height && self.anchor.top() > height + px(56.);
         let (corner, y) = if above { (Corner::BottomRight, self.anchor.top() - px(3.)) }
             else { (Corner::TopRight, self.anchor.bottom() + px(3.)) };
         anchored().anchor(corner).position(point(self.anchor.right(), y)).snap_to_window_with_margin(px(6.)).child(contents)

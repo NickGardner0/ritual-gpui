@@ -9,7 +9,7 @@ use crate::input::{TextField, TextFieldEvent};
 use crate::store::Entry;
 use crate::theme::{self, Theme, craft};
 use crate::trash::{close_button, dialog, primary_button, scrim, secondary_button};
-use crate::ui::{ROW_RADIUS, icon, ui_text};
+use crate::ui::{icon, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 use std::collections::{HashMap, HashSet};
 
@@ -277,7 +277,7 @@ impl Workspace {
                 .pr(px(5.))
                 .flex()
                 .items_center()
-                .rounded(px(ROW_RADIUS))
+                .rounded(px(crate::ui::design::metrics().row_radius))
                 .cursor_pointer()
                 .when(selected, |d| d.bg(Theme::fill_hover_strong()))
                 .when(!selected, |d| d.hover(|s| s.bg(Theme::fill_hover())))

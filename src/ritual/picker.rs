@@ -1,7 +1,9 @@
 //! Home's add-habit palette. Provider presets can be logged manually until a source is connected.
+use crate::ui::design::RITUAL;
 use super::{Habits, TrackedHabit, catalog::{Source, SOURCES, METRICS}};
 use crate::{input::{self, TextField, TextFieldEvent}, theme::Theme, ui};
 use gpui::{prelude::FluentBuilder, *};
+use std::{cell::Cell, rc::Rc};
 use uuid::Uuid;
 
 pub(crate) struct PickerClosed { pub created: bool }
@@ -27,6 +29,7 @@ pub(crate) struct Picker {
     title: Entity<TextField>,
     focus: FocusHandle,
     metric_focus: FocusHandle,
+    metric_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     start_focus: FocusHandle,
     metric: &'static str,
     metrics_open: bool,
@@ -53,7 +56,7 @@ impl Picker {
         }
         query.read(cx).focus_handle(cx).focus(window);
         Self { habits, step: Step::Sources, query, title, focus: cx.focus_handle(),
-            metric_focus: cx.focus_handle(), start_focus: cx.focus_handle(), metric: "Count", metrics_open: false,
+            metric_focus: cx.focus_handle(), metric_bounds: Rc::default(), start_focus: cx.focus_handle(), metric: "Count", metrics_open: false,
             active: 0, scroll: ScrollHandle::new(), submission: Uuid::new_v4(), error: None, _subs: subs }
     }
 
@@ -194,8 +197,7 @@ impl Picker {
 }
 
 fn icon_button(id: &'static str, icon: &'static str) -> Stateful<Div> {
-    div().id(id).size(px(30.)).flex_none().flex().items_center().justify_center().rounded(px(6.))
-        .cursor_pointer().hover(|s| s.bg(Theme::fill_hover())).child(ui::icon(icon, 15., Theme::text_caption()))
+    ui::icon_button(id, ui::icon(icon, RITUAL.menu_icon, Theme::text_caption()))
 }
 
 impl Picker {
@@ -209,12 +211,12 @@ impl Picker {
             group = section;
             let active = i == self.active;
             let icon = match choice {
-                Choice::Source(s) if s.icon.ends_with(".svg") => svg().path(format!("ritual/providers/{}", s.icon)).size(px(16.)).text_color(Theme::icon()).into_any_element(),
-                Choice::Source(s) => ui::icon(s.icon, 16., Theme::icon()).into_any_element(),
-                _ => ui::icon("list-todo", 15., Theme::icon()).into_any_element(),
+                Choice::Source(s) if s.icon.ends_with(".svg") => svg().path(format!("ritual/providers/{}", s.icon)).size(px(RITUAL.menu_icon)).text_color(Theme::icon()).into_any_element(),
+                Choice::Source(s) => ui::icon(s.icon, RITUAL.menu_icon, Theme::icon()).into_any_element(),
+                _ => ui::icon("list-todo", RITUAL.menu_icon, Theme::icon()).into_any_element(),
             };
-            let row = div().id(("habit-option", i)).h(px(36.)).px(px(10.)).flex().items_center().gap(px(13.)).rounded(px(6.))
-                .cursor_pointer().when(active, |d| d.bg(Theme::fill_hover_strong())).hover(|s| s.bg(Theme::fill_hover()))
+            let row = ui::option_row(("habit-option", i)).h(px(RITUAL.menu_height + 4.)).text_size(px(14.))
+                .when(active, |d| d.bg(Theme::fill_hover_strong()))
                 .on_hover(cx.listener(move |p, hovering: &bool, _, cx| { if *hovering { p.active = i; cx.notify(); } }))
                 .child(icon).child(choice.label()).child(div().flex_1())
                 .when_some(match choice { Choice::Source(s) if s.device() => Some("Manual only"), _ if active => Some("↵"), _ => None },
@@ -229,8 +231,8 @@ impl Picker {
 
     fn config(&self, custom: bool, w: &Window, cx: &mut Context<Self>) -> Div {
         let saving = self.habits.read(cx).saving;
-        let control = || div().flex_1().min_w_0().h(px(35.)).max_w(px(260.)).px(px(10.)).flex().items_center()
-            .rounded(px(6.)).border_1().border_color(Theme::line_border()).bg(Theme::bg_body());
+        let control = || div().flex_1().min_w_0().h(px(RITUAL.control_height)).max_w(px(260.)).px(px(10.)).flex().items_center()
+            .rounded(px(RITUAL.control_radius)).border_1().border_color(Theme::line_border()).bg(Theme::bg_body());
         let row = |label: &'static str, content: AnyElement| div().px(px(13.)).py(px(4.)).flex().items_center().justify_between()
             .border_b_1().border_color(ui::list_line()).child(div().mr(px(8.)).text_color(Theme::text_caption()).child(label)).child(content);
         let name = self.title.read(cx).text.clone();
@@ -238,11 +240,13 @@ impl Picker {
         let enabled = !name.trim().is_empty() && !saving;
         let (y,m,d,_,_) = crate::time::civil(crate::time::now());
         let month = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][(m-1) as usize];
-        let fields = div().rounded(px(7.)).overflow_hidden().bg(Theme::fill_hover()).child(row("Title", control().id("habit-title")
+        let metric_bounds = self.metric_bounds.clone();
+        let fields = div().rounded(px(RITUAL.menu_radius)).overflow_hidden().bg(Theme::fill_hover()).child(row("Title", control().id("habit-title")
             .when(custom && !saving, |el| el.cursor(CursorStyle::IBeam)
                 .on_click(move |_, w, _| title.focus(w)).child(self.title.clone()))
             .when(!custom || saving, |el| el.child(name)).into_any_element()))
-            .child(row("Metric", control().id("habit-metric").track_focus(&self.metric_focus).cursor_pointer()
+            .child(row("Metric", control().id("habit-metric").relative().track_focus(&self.metric_focus).cursor_pointer()
+                .child(canvas(move |b, _, _| metric_bounds.set(Some(b)), |_, _, _, _| {}).absolute().inset_0())
                 .when(self.metric_focus.is_focused(w), |d| d.border_color(Theme::text_placeholder()))
                 .on_click(cx.listener(|p, _, w, cx| { if !p.habits.read(cx).saving { p.open_metrics(w,cx); } }))
                 .child(self.metric).child(div().flex_1()).child(ui::icon("chevron-down", 14., Theme::text_caption())).into_any_element()))
@@ -252,27 +256,32 @@ impl Picker {
             .child(fields)
             .when_some(self.error.clone(), |d,e| d.child(div().mt(px(6.)).text_color(Theme::danger()).child(e)))
             .child(div().mt(px(18.)).flex().justify_end().items_center().gap(px(6.))
-                .child(div().id("cancel-config").h(px(32.)).px(px(10.)).flex().items_center().cursor_pointer().text_color(Theme::text_caption())
+                .child(div().id("cancel-config").h(px(RITUAL.control_height)).px(px(12.)).rounded(px(RITUAL.control_radius)).hover(|s| s.bg(Theme::fill_hover())).flex().items_center().cursor_pointer().text_color(Theme::text_caption())
                     .child("Cancel").on_click(cx.listener(|p, _, w, cx| p.back(w,cx))))
-                .child(div().id("start-tracking").track_focus(&self.start_focus).h(px(32.)).px(px(13.)).flex().items_center().rounded(px(6.))
+                .child(div().id("start-tracking").track_focus(&self.start_focus).h(px(RITUAL.control_height)).px(px(16.)).flex().items_center().rounded(px(RITUAL.control_radius))
                     .bg(Theme::text()).text_color(Theme::bg_body()).when(!enabled, |d| d.opacity(0.40))
                     .when(self.start_focus.is_focused(w), |d| d.border_2().border_color(Theme::primary()))
                     .when(enabled, |d| d.cursor_pointer().on_click(cx.listener(|p, _, w, cx| p.save(w,cx))))
                     .child(if saving { "Starting…" } else { "Start Tracking" })))
     }
 
-    fn metrics(&self, cx: &mut Context<Self>) -> Div {
+    fn metrics(&self, w: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let b = self.metric_bounds.get()?;
         let mut options = div().id("metric-options").min_h_0().flex_1().overflow_y_scroll().track_scroll(&self.scroll);
         let rows = self.choices(cx);
         for (i, choice) in rows.iter().copied().enumerate() {
-            options = options.child(div().id(("metric",i)).h(px(28.)).px(px(8.)).flex().items_center().rounded(px(4.))
-                .when(self.active == i, |d| d.bg(Theme::fill_hover_strong())).hover(|s| s.bg(Theme::fill_hover())).cursor_pointer()
+            options = options.child(ui::option_row(("metric", i))
+                .when(self.active == i, |d| d.bg(Theme::fill_hover_strong()))
                 .child(choice.label()).child(div().flex_1()).when(choice.label()==self.metric, |d| d.child(ui::icon("check",13.,Theme::icon())))
                 .on_click(cx.listener(move |p, _, w, cx| p.choose(choice,w,cx))));
         }
         if rows.is_empty() { options = options.child(div().p(px(8.)).text_color(Theme::text_caption()).child("No matches.")); }
-        ui::popover().absolute().right(px(28.)).top(px(191.)).w(px(260.)).max_w_full().h(px(180.)).p(px(6.)).flex().flex_col()
-            .child(div().h(px(30.)).px(px(8.)).flex().items_center().border_b_1().border_color(ui::list_line()).child(self.query.clone())).child(options)
+        let height = px(180.);
+        let above = b.bottom() + height + px(12.) > w.viewport_size().height && b.top() > height + px(12.);
+        let (corner, y) = if above { (Corner::BottomRight, b.top() - px(4.)) } else { (Corner::TopRight, b.bottom() + px(4.)) };
+        let menu = ui::popover().occlude().w(b.size.width).h(height).p(px(6.)).flex().flex_col()
+            .child(div().h(px(RITUAL.small_control_height)).flex_none().px(px(8.)).flex().items_center().border_b_1().border_color(ui::list_line()).child(self.query.clone())).child(options);
+        Some(deferred(anchored().anchor(corner).position(point(b.right(), y)).snap_to_window_with_margin(px(8.)).child(menu)).with_priority(4).into_any_element())
     }
 }
 
@@ -303,6 +312,6 @@ impl Render for Picker {
             .when(!config, |d| d.child(self.palette(cx)))
             .when(config, |d| d.child(self.config(matches!(self.step,Step::Configure(_,None)),w,cx)))
             .when(self.metrics_open, |d| d.child(div().id("metrics-backdrop").absolute().inset_0().occlude()
-                .on_click(cx.listener(|p,_,w,cx| p.back(w,cx)))).child(self.metrics(cx).occlude()))
+                .on_click(cx.listener(|p,_,w,cx| p.back(w,cx)))).children(self.metrics(w, cx)))
     }
 }
