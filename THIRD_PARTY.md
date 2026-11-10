@@ -783,3 +783,8 @@ Windows 安装包随附未修改的 Microsoft Visual C++ Runtime `vcruntime140.d
 ## 内置文档
 
 `shared-mock/library/` 里的「开始指南」是本项目自己写的示例文档，随 MIT 分发。
+
+
+## Ritual Dev provider marks
+
+The seven marks in `assets/ritual/providers/` identify Screen Time, Apple, Oura, Whoop, Fitbit, Garmin, and Plaid. They come from Ritual Desktop’s [provider picker](https://github.com/NickGardner0/ritual-desktop-main/tree/4afdc5e6/apps/dashboard/components/habit-selection) and [image assets](https://github.com/NickGardner0/ritual-desktop-main/tree/4afdc5e6/apps/dashboard/public/images). They are separate from Quiet.md’s Nucleo icon collection. The Computer Use monitor icon comes from lucide-react (ISC; see [license](assets/icons/LICENSE-lucide)).

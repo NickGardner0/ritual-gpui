@@ -129,7 +129,7 @@ pub fn bind_keys(cx: &mut App) {
             cx.defer(move |cx| {
                 if let Err(e) = handle.update(cx, |ws, window, cx| {
                     crate::quick_note::persist(cx);
-                    if ws.save_before(cx, |_, window, _| window.remove_window()) { window.remove_window(); }
+                    if !ws.habit_write_pending(cx) && ws.save_before(cx, |_, window, _| window.remove_window()) { window.remove_window(); }
                 }) { eprintln!("无法关闭笔记窗口：{e}"); }
             });
         }
@@ -146,7 +146,10 @@ pub fn quit(cx: &mut App) {
         .windows()
         .into_iter()
         .filter_map(|w| w.downcast::<Workspace>())
-        .map(|w| w.update(cx, |ws, _, cx| ws.save_before(cx, |_, _, cx| cx.defer(quit))).unwrap_or(false))
+        .map(|w| w.update(cx, |ws, _, cx| {
+            if ws.habits.as_ref().is_some_and(|p| p.update(cx, |h, _| h.wait_to_quit())) { return false; }
+            ws.save_before(cx, |_, _, cx| cx.defer(quit))
+        }).unwrap_or(false))
         .fold(true, |ready, saved| ready & saved);
     if ready {
         cx.quit();
@@ -214,6 +217,9 @@ pub struct Rename {
 }
 
 pub struct Workspace {
+    pub(crate) habits: Option<Entity<crate::ritual::Habits>>,
+    habit_picker: Option<Entity<crate::ritual::Picker>>,
+    before_picker: Option<FocusHandle>,
     pub quick_note: bool,
     pub shortcut_recording: Option<String>,
     pub shortcut_strokes: Vec<String>,
@@ -384,7 +390,7 @@ impl Workspace {
         let this = cx.weak_entity();
         window.on_window_should_close(cx, move |_, cx| {
             crate::quick_note::persist(cx);
-            this.update(cx, |w, cx| { w.cancel_shortcut_recording(cx); w.save_before(cx, |_, window, _| window.remove_window()) }).unwrap_or(true)
+            this.update(cx, |w, cx| { w.cancel_shortcut_recording(cx); !w.habit_write_pending(cx) && w.save_before(cx, |_, window, _| window.remove_window()) }).unwrap_or(true)
         });
         if !quick { crate::settings::watch_themes(cx); }
         // 日期提醒: post what fell due since the last look (not what was
@@ -403,6 +409,9 @@ impl Workspace {
         .detach();
         let sidebar_width = store.settings().sidebar_width.unwrap_or(theme::SIDEBAR_WIDTH);
         let mut ws = Workspace {
+            habits: None,
+            habit_picker: None,
+            before_picker: None,
             quick_note: quick,
             shortcut_recording: None,
             shortcut_strokes: vec![],
@@ -465,6 +474,10 @@ impl Workspace {
         };
         ws.sort();
         ws.load_home();
+        if !quick && cx.has_global::<crate::ritual::Profile>() {
+            ws.home.tab = crate::home::HomeTab::Habits;
+            ws.habits = Some(cx.new(|cx| crate::ritual::Habits::new(ws.store.settings().ritual_habits_grid, window, cx)));
+        }
         // An empty library opens on 主页's empty state; only a quick note
         // window starts a document of its own.
         match document.or_else(|| (!quick).then(|| ws.entries.first().map(|e| e.id.clone())).flatten()) {
@@ -737,11 +750,56 @@ impl Workspace {
         cx.notify();
     }
 
+    pub(crate) fn add_habit_button(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        crate::ui::header_icon("add-habit", "plus")
+            .when(self.habit_picker.is_none(), |d| d.tip(crate::settings::tr("添加习惯", "Add habit"), None))
+            .on_mouse_down(MouseButton::Left, |_, w, cx| { w.prevent_default(); cx.stop_propagation(); })
+            .on_click(cx.listener(|ws, _, w, cx| ws.pick_habit(w, cx)))
+    }
+
+    fn dismiss_habit_picker(&mut self, created: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if self.habit_write_pending(cx) { return; }
+        self.habit_picker = None;
+        let previous = self.before_picker.take();
+        if created {
+            self.batch = None;
+            self.show_view(View::Home, cx);
+            self.focus.focus(window);
+        } else {
+            previous.as_ref().unwrap_or(&self.focus).focus(window);
+        }
+        cx.notify();
+    }
+
+    fn pick_habit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(habits) = self.habits.clone() else { return };
+        if self.habit_picker.is_some() || habits.read(cx).saving() { return; }
+        self.row_menu = None;
+        self.home.sort_menu = false;
+        self.create_menu = None;
+        self.import_menu = None;
+        self.before_picker = window.focused(cx);
+        let picker = cx.new(|cx| crate::ritual::Picker::new(habits, window, cx));
+        cx.subscribe_in(&picker, window, |ws, _, event: &crate::ritual::PickerClosed, window, cx| {
+            ws.dismiss_habit_picker(event.created, window, cx);
+        }).detach();
+        self.habit_picker = Some(picker);
+        cx.notify();
+    }
+
+    fn habit_write_pending(&self, cx: &App) -> bool {
+        self.habits.as_ref().is_some_and(|page| page.read(cx).saving())
+    }
+
     /// Switch the main pane to 主页 or 回收站 (or back to the document).
     pub fn show_view(&mut self, view: View, cx: &mut Context<Self>) {
         self.cancel_shortcut_recording(cx);
         if view == View::Trash {
             self.trash = self.store.list_trash();
+        }
+        if view == View::Home && let Some(page) = &self.habits {
+            self.home.tab = crate::home::HomeTab::Habits;
+            page.update(cx, |h, cx| h.show_list(cx));
         }
         self.view = view;
         self.row_menu = None;
@@ -1283,8 +1341,8 @@ impl Workspace {
                     )
                     .child(
                         // Straight to a new document: no 新建 menu, as 导入 is rare.
-                        seg("doc-new", "plus").tip(crate::settings::tr("新建文档", "New document"), None).on_click(cx.listener(|w, _, window, cx| w.new_doc(window, cx))),
-                    ).into_any_element()
+                        seg("doc-new", if self.habits.is_some() { "square-pen" } else { "plus" }).tip(crate::settings::tr("新建文档", "New document"), None).on_click(cx.listener(|w, _, window, cx| w.new_doc(window, cx))),
+                    ).when(self.habits.is_some(), |d| d.child(self.add_habit_button(cx))).into_any_element()
             )
     }
 }
@@ -1361,7 +1419,7 @@ impl Render for Workspace {
                 .on_drag_move(cx.listener(|w, ev: &DragMoveEvent<ExternalPaths>, _, cx| w.file_drag_move(ev, cx)))
                 .on_drop(cx.listener(|w, paths: &ExternalPaths, window, cx| w.file_dropped(paths, window, cx))))
             .children(file_drop);
-        div()
+        let workspace = div()
             .id("workspace")
             .key_context("Workspace")
             .capture_action(cx.listener(|w, _: &crate::editor::keymap::Undo, window, cx| w.capture_file_history(false, window, cx)))
@@ -1386,7 +1444,7 @@ impl Render for Workspace {
             .on_mouse_up(MouseButton::Left, cx.listener(|w, _, window, cx| w.finish_sidebar_click(window, cx)))
             .on_action(cx.listener(|w, _: &CloseWindow, window, cx| {
                 crate::quick_note::persist(cx);
-                if w.save_before(cx, |_, window, _| window.remove_window()) { window.remove_window(); }
+                if !w.habit_write_pending(cx) && w.save_before(cx, |_, window, _| window.remove_window()) { window.remove_window(); }
             }))
             .on_action(|_: &Minimize, window, _| window.minimize_window())
             .on_action(|_: &Zoom, window, _| window.zoom_window())
@@ -1492,7 +1550,15 @@ impl Render for Workspace {
             .children(home_drag_overlay)
             .children(create_menu)
             .children(import_menu)
-            .children(toast)
+            .children(toast);
+        let inset = if self.sidebar_open { self.sidebar_w(window) } else { 0. };
+        div().relative().size_full().child(workspace).when_some(self.habit_picker.clone(), |d, picker| {
+            d.child(div().absolute().inset_0().occlude().bg(Theme::bg_body().opacity(0.80))
+                .flex().items_center().justify_center().pl(px(inset.min((f32::from(window.viewport_size().width) - 480.).max(0.))))
+                .on_mouse_down(MouseButton::Left, cx.listener(|ws, _, window, cx| {
+                    ws.dismiss_habit_picker(false, window, cx);
+                })).child(picker))
+        })
     }
 }
 

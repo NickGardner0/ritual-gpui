@@ -1,0 +1,79 @@
+use super::*;
+
+#[test]
+fn water_survives_reopen_and_retries_are_idempotent() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("ritual.sqlite3");
+    let mut store = Store::open(&path)?;
+    let id = Uuid::new_v4();
+    let habit = store.create_habit(id, " Water ", "Health", " glasses ")?;
+    assert_eq!(habit, store.create_habit(id, "Water", "Health", "glasses")?);
+    assert!(store.create_habit(id, "Coffee", "Health", "cups").is_err());
+    let mut command = ManualLog::now(id, 2.);
+    command.at = DateTime::parse_from_rfc3339("2026-11-10T23:52:00-05:00")?;
+    let saved = store.append(&command)?;
+    drop(store);
+
+    let mut store = Store::open(&path)?;
+    assert_eq!(store.habits()?, [habit]);
+    assert_eq!(store.history(id)?.as_slice(), std::slice::from_ref(&saved));
+    assert_eq!(saved.date.to_string(), "2026-11-10");
+    assert_eq!(saved.completed_at.to_rfc3339(), "2026-11-11T04:52:00+00:00");
+    assert_eq!(saved.display_time(), "Nov 10, 2026 · 11:52 PM");
+    assert_eq!((saved.amount, saved.source.as_str(), saved.status.as_str()), (2., "manual", "completed"));
+    assert_eq!(store.append(&command)?, saved);
+    command.amount = 1.;
+    assert!(store.append(&command).is_err());
+    command.event_id = Uuid::new_v4();
+    command.at = DateTime::parse_from_rfc3339("2026-11-11T08:00:00-05:00")?;
+    let later = store.append(&command)?;
+    assert_eq!(store.history(id)?, [later, saved]);
+    Ok(())
+}
+
+#[test]
+fn failed_writes_retain_the_submission_for_retry() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let mut store = Store::open(&dir.path().join("ritual.sqlite3"))?;
+    let id = Uuid::new_v4();
+    for (name, category, unit) in [(" ", "Health", "glasses"), ("Water", "", "glasses"), ("Water", "Health", " ")] {
+        assert!(store.create_habit(id, name, category, unit).is_err());
+    }
+    let log = ManualLog::now(id, 2.);
+    assert!(store.append(&log).is_err());
+    store.create_habit(id, "Water", "Health", "glasses")?;
+    for amount in [-2., 0., f64::NAN, f64::INFINITY] {
+        assert!(store.append(&ManualLog::now(id, amount)).is_err());
+    }
+    store.0.pragma_update(None, "query_only", true)?;
+    assert!(store.append(&log).is_err());
+    assert!(store.history(id)?.is_empty());
+    store.0.pragma_update(None, "query_only", false)?;
+    let saved = store.append(&log)?;
+    assert_eq!(store.append(&log)?, saved);
+    assert_eq!(store.history(id)?, [saved]);
+    Ok(())
+}
+
+#[test]
+fn home_index_keeps_empty_habits_and_summarizes_each_unit_after_reopen() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("ritual.sqlite3");
+    let mut db = Store::open(&path)?;
+    let water = db.create_habit(Uuid::new_v4(), "Water", "Health", "glasses")?;
+    let heart = db.create_habit(Uuid::new_v4(), "Heart rate", "Health", "BPM")?;
+    let read = db.create_habit(Uuid::new_v4(), "Daily Reading", "Education", "Pages")?;
+    let first = ManualLog::now(water.id, 2.);
+    db.append(&first)?;
+    db.append(&first)?;
+    db.append(&ManualLog::now(water.id, 1.5))?;
+    db.append(&ManualLog::now(heart.id, 70.))?;
+    db.append(&ManualLog::now(heart.id, 80.))?;
+    drop(db);
+    let rows = Store::open(&path)?.index()?;
+    let row = |id| rows.iter().find(|r| r.habit.id == id).unwrap();
+    assert_eq!((row(water.id).count, row(water.id).value()), (2, 3.5));
+    assert_eq!(row(heart.id).value(), 75.);
+    assert_eq!((row(read.id).count, row(read.id).value()), (0, 0.));
+    Ok(())
+}

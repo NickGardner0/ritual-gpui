@@ -133,7 +133,7 @@ impl Workspace {
             .child(div().flex_1())
             .children(crate::settings::update_pill(cx));
 
-        // The nav is just 主页: 36px items, a blue tint when selected. Its
+        // Primary navigation. Its
         // icon column (x 17) is shared with 搜索 and the doc rows.
         let home_on = self.view == View::Home;
         let nav = div().flex_none().pt(px(4.)).pb(px(4.)).px(px(SB_X)).child(

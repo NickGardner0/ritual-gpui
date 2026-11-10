@@ -158,6 +158,8 @@ pub struct Settings {
     /// 主页: list instead of grid, and the sort order ("visited" …).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub home_list: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ritual_habits_grid: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home_sort: Option<String>,
     #[serde(default)]
@@ -360,12 +362,19 @@ pub fn read_bounded(path: &std::path::Path, limit: u64) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+static DEFAULT_ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
 impl Store {
+    /// Select the embedding app's document library before any windows are constructed.
+    pub fn set_default_root(root: PathBuf) {
+        DEFAULT_ROOT.set(root).expect("document library already configured");
+    }
+
     /// `QUIET_MD_HOME`, else a folder of
     /// its own in the user's Documents, where they can see and back it up.
     pub fn root_dir() -> PathBuf {
         std::env::var_os("QUIET_MD_HOME")
-            .map(PathBuf::from)
+            .map(PathBuf::from).or_else(|| DEFAULT_ROOT.get().cloned())
             .unwrap_or_else(|| dirs::document_dir().or_else(|| dirs::home_dir().map(|h| h.join("Documents"))).unwrap_or_else(|| PathBuf::from(".")).join("Quiet.md"))
     }
 

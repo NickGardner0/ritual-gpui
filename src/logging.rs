@@ -36,7 +36,7 @@ impl log::Log for Logger {
 /// Opens the log (trimmed when large), captures `log` records (GPUI's
 /// included) and panics. Falls back to the temp directory when the usual one
 /// cannot be created; never fails the launch.
-pub fn init() {
+pub fn init(ritual: bool) {
     let open = |dir: PathBuf| -> std::io::Result<File> {
         std::fs::create_dir_all(&dir)?;
         let p = dir.join("quiet-md.log");
@@ -46,7 +46,10 @@ pub fn init() {
         let _ = OPENED.set(p);
         Ok(f)
     };
-    if let Ok(f) = open(dir()).or_else(|_| open(std::env::temp_dir().join("quiet.md-logs"))) { let _ = FILE.set(Mutex::new(f)); }
+    let dir = if ritual && std::env::var_os("QUIET_MD_LOG_DIR").is_none() {
+        dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("Ritual GPUI Dev/logs")
+    } else { dir() };
+    if let Ok(f) = open(dir).or_else(|_| open(std::env::temp_dir().join("quiet.md-logs"))) { let _ = FILE.set(Mutex::new(f)); }
     let _ = log::set_logger(&Logger).map(|()| log::set_max_level(log::LevelFilter::Info));
     let default = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

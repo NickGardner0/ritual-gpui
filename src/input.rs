@@ -146,6 +146,10 @@ impl TextField {
         cx.notify();
     }
 
+    pub(crate) fn set_tab_index(&mut self, index: isize) {
+        self.focus = self.focus.clone().tab_index(index).tab_stop(true);
+    }
+
     pub fn set_text(&mut self, s: &str, cx: &mut Context<Self>) {
         self.text = s.to_string();
         self.sel = self.text.len()..self.text.len();

@@ -28,6 +28,7 @@ pub enum HomeTab {
     #[default]
     Recent,
     Starred,
+    Habits,
 }
 
 /// The optional list columns (标题 is always shown).
@@ -361,7 +362,7 @@ impl Home {
 
     fn cols(&self) -> Vec<Col> {
         match self.tab {
-            HomeTab::Recent => RECENT_COLS.to_vec(),
+            HomeTab::Habits | HomeTab::Recent => RECENT_COLS.to_vec(),
             HomeTab::Starred => STARRED_COLS.to_vec(),
         }
     }
@@ -427,6 +428,7 @@ impl Workspace {
         match self.home.tab {
             // 我的文档 is the library's top level.
             HomeTab::Recent => self.level_entries(None),
+            HomeTab::Habits => vec![],
             HomeTab::Starred => self.sorted_entries(self.entries.iter().filter(|e| e.meta.folder.is_none() && e.meta.starred > 0).cloned().collect()),
         }
     }
@@ -545,6 +547,8 @@ impl Workspace {
     /// The grid / list switcher: one white pill, the current view on a quiet
     /// fill. 主页 and folder pages share it, so a folder opens in the view its parent showed.
     pub(crate) fn view_switch(&self, cx: &mut Context<Self>) -> Div {
+        let habits = self.view == crate::app::View::Home && self.home.tab == HomeTab::Habits;
+        let current_grid = if habits { self.habits.as_ref().is_some_and(|p| p.read(cx).grid) } else { self.home.grid };
         let toggle = |id: &'static str, ic: &'static str, on: bool, tip: &'static str, grid: bool| {
             div()
                 .id(id)
@@ -559,8 +563,15 @@ impl Workspace {
                 .when(!on, |d| d.tip(tip, None).hover(|s| s.bg(Theme::fill_hover())))
                 .child(icon(ic, 14., Theme::icon()))
                 .on_click(cx.listener(move |w, _, _, cx| {
-                    w.home.grid = grid;
-                    w.save_home();
+                    if habits && let Some(page) = &w.habits {
+                        page.update(cx, |h, cx| { h.grid = grid; cx.notify(); });
+                        let mut settings = w.store.settings();
+                        settings.ritual_habits_grid = grid;
+                        if let Err(e) = w.store.save_settings(&settings) { w.show_toast_kind(crate::ui::ToastKind::Error, &e.to_string(), cx); }
+                    } else {
+                        w.home.grid = grid;
+                        w.save_home();
+                    }
                     w.home.sort_menu = false;
                     cx.notify();
                 }))
@@ -570,8 +581,8 @@ impl Workspace {
             .flex()
             .gap(px(2.))
             .rounded(px(9.))
-            .child(toggle("home-grid", "view-grid", self.home.grid, crate::settings::text("切换为宫格视图"), true))
-            .child(toggle("home-list", "view-list", !self.home.grid, crate::settings::text("切换为列表视图"), false))
+            .child(toggle("home-grid", "view-grid", current_grid, crate::settings::text("切换为宫格视图"), true))
+            .child(toggle("home-list", "view-list", !current_grid, crate::settings::text("切换为列表视图"), false))
     }
 
     /// A newly opened folder page starts at its top.
@@ -597,6 +608,9 @@ impl Workspace {
 
     pub(crate) fn render_home(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         // Too narrow for the search box: a search icon beside +, in the same style.
+        let ritual = self.habits.is_some();
+        if self.batch.is_some() && self.home.tab == HomeTab::Habits { self.home.tab = HomeTab::Recent; }
+        let tracking = self.home.tab == HomeTab::Habits;
         let search = self.header_search(window, cx);
         let narrow = search.is_none();
         let header = page_header(self, crate::settings::text("主页"), 26., cx).relative().children(search)
@@ -604,14 +618,13 @@ impl Workspace {
                 .tip(crate::settings::tr("搜索文档", "Search documents"), Some(crate::shortcuts::hint("workspace::FocusSearch", "⌘ + J")))
                 .on_click(cx.listener(|w, _, window, cx| w.open_search(window, cx)))))
             .child(self.import_button("home-import", None, cx))
-            .child(
-            crate::ui::header_icon("home-new", "plus")
+            .when(ritual, |d| d.child(self.add_habit_button(cx)))
+            .when(!ritual, |d| d.child(crate::ui::header_icon("home-new", "plus")
                 .child(self.home.track("create-home"))
                 .when(self.create_menu.is_some(), |d| d.bg(Theme::fill_hover()))
                 .tip(crate::settings::tr("新建", "New"), Some(crate::shortcuts::hint("workspace::NewDoc", "⌘ + N")))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_click(cx.listener(|w, ev: &ClickEvent, _, cx| { let pos = w.home.anchor("create-home").map_or(ev.position(), |b| point(b.left(), b.bottom() + px(4.))); w.create_menu = if w.create_menu.is_some() { None } else { Some((None, pos)) }; cx.notify(); })).into_any_element()
-        );
+                .on_click(cx.listener(|w, ev: &ClickEvent, _, cx| { let pos = w.home.anchor("create-home").map_or(ev.position(), |b| point(b.left(), b.bottom() + px(4.))); w.create_menu = if w.create_menu.is_some() { None } else { Some((None, pos)) }; cx.notify(); }))));
         // Tabs as segmented items: the current one on a quiet fill, no accent.
         let tab = |id: &'static str, label: &'static str, t: HomeTab| {
             let on = self.home.tab == t;
@@ -629,7 +642,9 @@ impl Workspace {
                 .when(on, |d| d.bg(Theme::fill_hover_strong()).text_color(Theme::text()))
                 .when(!on, |d| d.text_color(Theme::text_caption()).hover(|s| s.bg(Theme::fill_hover())))
                 .child(crate::settings::label(label))
-                .on_click(cx.listener(move |w, _, _, cx| {
+                .on_click(cx.listener(move |w, _, window, cx| {
+                    if t == HomeTab::Habits && let Some(h) = &w.habits { h.update(cx, |h, cx| h.show_list(cx)); }
+                    w.focus.focus(window);
                     w.home.tab = t;
                     w.home.sort_menu = false;
                     cx.notify();
@@ -652,7 +667,9 @@ impl Workspace {
             .pl(px(24.))
             .pr(px(24.))
             .flex()
-            .items_center();
+            .items_center()
+            .when(ritual && f32::from(window.viewport_size().width) - if self.sidebar_open { self.sidebar_w(window) } else { 0. } < 560., |d|
+                d.h_auto().flex_wrap().gap_y(px(4.)));
         let toolbar = if let Some(sel) = &self.batch {
             let ids: Vec<String> = self.home_entries().into_iter().take(crate::sidebar::BATCH_LIMIT).map(|e| e.id).collect();
             let n = sel.len();
@@ -676,10 +693,11 @@ impl Workspace {
                     .tip(crate::settings::text("退出批量操作"), None)
                     .on_click(cx.listener(|w, _, _, cx| { w.batch = None; w.row_menu = None; cx.notify(); })))
         } else { toolbar
+            .when(ritual, |d| d.child(tab("home-tab-habits", crate::settings::tr("习惯", "Habits"), HomeTab::Habits)))
             .child(tab("home-tab-recent", crate::settings::text("我的文档"), HomeTab::Recent))
             .child(tab("home-tab-star", crate::settings::text("收藏"), HomeTab::Starred))
             .child(div().flex_1())
-            .child(text_btn("home-batch", "batch", crate::settings::text("批量管理"), true).text_color(Theme::text_caption()).mr(px(8.))
+            .when(!tracking, |d| d.child(text_btn("home-batch", "batch", crate::settings::text("批量管理"), true).text_color(Theme::text_caption()).mr(px(8.))
                 .on_click(cx.listener(|w, _, _, cx| { w.batch = Some(vec![]); w.row_menu = None; w.home.sort_menu = false; cx.notify(); })))
             .child(
                 div().id("home-sort").relative().h(px(28.)).px(px(10.)).flex().items_center().gap(px(6.))
@@ -689,11 +707,14 @@ impl Workspace {
                     .child(self.home.track("home-sort"))
                     .on_click(cx.listener(|w, _, _, cx| { w.home.sort_menu = !w.home.sort_menu; cx.notify(); })),
             )
+            )
             .child(self.view_switch(cx).ml(px(16.))
             ) };
 
         let entries = self.home_entries();
-        let body = if entries.is_empty() && (self.home.grid || self.home.tab == HomeTab::Recent) {
+        let body = if tracking {
+            self.habits.clone().expect("Ritual Home").into_any_element()
+        } else if entries.is_empty() && (self.home.grid || self.home.tab == HomeTab::Recent) {
             empty_state("illus/empty-list.svg", crate::settings::text("当前列表暂无内容")).into_any_element()
         } else if self.home.grid {
             self.render_home_grid(&entries, false, window, cx)
