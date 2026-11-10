@@ -16,7 +16,44 @@ enum Mode { Log, Chat }
 impl Mode {
     fn label(self) -> &'static str { match self { Self::Log => "Log", Self::Chat => "Chat" } }
     fn placeholder(self) -> &'static str {
-        match self { Self::Log => "Log anything…", Self::Chat => "Ask about your habits…" }
+        match self { Self::Log => "Log anything...", Self::Chat => "Ask about your personal data..." }
+    }
+}
+
+/// Ritual Desktop's surface-panel, text, and icon tokens (dashboard/app/globals.css).
+struct ComposerColors {
+    surface: Hsla,
+    text: Hsla,
+    secondary: Hsla,
+    muted: Hsla,
+    icon: Hsla,
+    on_send: Hsla,
+    action_fill: Hsla,
+    mode_track: Hsla,
+    mode_selected: Hsla,
+    send_disabled: Hsla,
+}
+
+impl ComposerColors {
+    fn current() -> Self {
+        let dark = crate::theme::dark();
+        let color = |light, night| rgb(if dark { night } else { light }).into();
+        let text: Hsla = color(0x111111, 0xf7f7f3);
+        // WebKit composites these translucent controls differently from GPUI.
+        // Light fills are sampled from Ritual Desktop; dark fills use its CSS opacities.
+        let fill = |light, opacity| if dark { text.opacity(opacity) } else { rgb(light).into() };
+        Self {
+            surface: color(0xf4f4f3, 0x151516),
+            text,
+            secondary: color(0x666666, 0xb8b8b2),
+            muted: color(0x7a7a7a, 0x9a9a94),
+            icon: color(0x5f6368, 0xb7b7b0),
+            on_send: color(0xffffff, 0x151516),
+            action_fill: fill(0xe6e6e5, 0.07),
+            mode_track: fill(0xeaeae9, 0.05),
+            mode_selected: fill(0xd0cfcf, 0.14),
+            send_disabled: fill(0xaeaead, 0.35),
+        }
     }
 }
 
@@ -50,13 +87,20 @@ pub(crate) struct Composer {
 
 impl Composer {
     pub(crate) fn new(habits: Entity<Habits>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let families = cx.text_system().all_font_names();
+        let family = ["FK Grotesk Neue", "FK Grotesk Neue Trial"].into_iter()
+            .find(|family| families.iter().any(|name| name == family)).unwrap_or(crate::theme::UI_FONT);
+        let colors = ComposerColors::current();
         let input = cx.new(|cx| {
             let mut f = TextField::new(Mode::Log.placeholder(), cx);
             f.multiline = true;
             f.submit_on_enter = true;
             f.wrap = true;
-            f.size = 14.;
-            f.line_height = 19.;
+            f.font = Some(family);
+            f.size = 15.;
+            f.line_height = 20.;
+            f.color = colors.text;
+            f.placeholder_color = colors.muted;
             f.tab_events = true;
             f.set_tab_index(1);
             f

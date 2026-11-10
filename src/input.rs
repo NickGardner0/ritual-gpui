@@ -77,6 +77,7 @@ pub struct TextField {
     placeholder: SharedString,
     cache: LayoutCache,
     id: BlockId,
+    pub font: Option<&'static str>,
     pub size: f32,
     pub line_height: f32,
     pub placeholder_color: Hsla,
@@ -125,6 +126,7 @@ impl TextField {
             cache: Default::default(),
             id: BlockId(NEXT_ID.fetch_add(1, Ordering::Relaxed)),
             // macOS's control text: 13pt.
+            font: None,
             size: 13.,
             line_height: 20.,
             placeholder_color: Theme::text_placeholder(),
@@ -514,6 +516,7 @@ impl Render for TextField {
         let focused = self.focus.is_focused(window);
         let mut spec = TextSpec::body();
         spec.doc_font = false;
+        spec.font = self.font;
         spec.size = self.size;
         spec.line_height = self.line_height;
         spec.color = self.color;
