@@ -156,7 +156,7 @@ fn run_workspace(ritual: bool) {
         editor::image::bind_keys(cx);
         app::bind_keys(cx);
         settings::load();
-        settings::apply_appearance(&settings::prefs().appearance);
+        settings::apply_native(&settings::prefs(), cx);
         settings::sync_dark(cx);
         themes::load(&settings::prefs().theme_id(), false, || cx.text_system().all_font_names());
         changelog::startup(existed);

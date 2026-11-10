@@ -8,7 +8,7 @@ fn button(id: &'static str, label: &'static str, primary: bool) -> Stateful<Div>
 }
 
 impl Habits {
-    pub(super) fn sync_colors(&mut self, _: &Window, cx: &mut Context<Self>) {
+    pub(crate) fn refresh_colors(&mut self, cx: &mut Context<Self>) {
         self.amount.update(cx, |f, cx| { f.color = Theme::text(); f.placeholder_color = Theme::text_placeholder(); cx.notify(); });
         cx.notify();
     }

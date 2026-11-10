@@ -1,5 +1,6 @@
 //! Tracked habits on the Ritual Home tab.
 mod view;
+pub(crate) mod appearance;
 mod picker;
 mod catalog;
 mod composer;
@@ -75,12 +76,12 @@ impl Habits {
                 _ => {}
             }
         })];
-        subscriptions.push(cx.observe_window_appearance(window, |this, window, cx| this.sync_colors(window, cx)));
+        subscriptions.push(cx.observe_window_appearance(window, |this, _, cx| this.refresh_colors(cx)));
         let mut this = Self { db: None, habits: vec![], selected: None, history: None, history_request: 0,
             grid, saving: false, quit_after_save: false, log_draft: None, error: None,
             amount, focus: cx.focus_handle(),
             _subscriptions: subscriptions };
-        this.sync_colors(window, cx);
+        this.refresh_colors(cx);
         this.open_database(window, cx);
         this
     }

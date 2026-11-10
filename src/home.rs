@@ -179,7 +179,7 @@ fn thumb_block_in(b: &crate::model::Block, depth: usize, inherited: Hsla, quote:
         }
         BlockKind::Code { lang, caption, wrap } => {
             node = node.rounded(px(bs::RADIUS * s)).border(px(s)).border_color(Theme::line_border()).bg(bs::code_surface()).font_family(theme::MONO_FONT)
-                .child(div().h(px(bs::CODE_HEADER * s)).pl(px(28. * s)).pr(px(8. * s)).rounded_t(px((bs::RADIUS - 1.) * s)).bg(bs::code_header()).flex().items_center().font_family(theme::UI_FONT).text_size(px(13. * s)).text_color(Theme::text_caption()).child(caption.clone().unwrap_or_else(|| crate::settings::text("代码块").into())));
+                .child(div().h(px(bs::CODE_HEADER * s)).pl(px(28. * s)).pr(px(8. * s)).rounded_t(px((bs::RADIUS - 1.) * s)).bg(bs::code_header()).flex().items_center().font_family(theme::ui_font()).text_size(px(13. * s)).text_color(Theme::text_caption()).child(caption.clone().unwrap_or_else(|| crate::settings::text("代码块").into())));
             let spans = crate::highlight::spans(lang, &b.text.text);
             let mut body = div().pt(px(14. * s)).pb(px(18. * s)).pr(px(20. * s)).flex().flex_col();
             let mut off = 0;
@@ -245,7 +245,7 @@ fn thumb_block_in(b: &crate::model::Block, depth: usize, inherited: Hsla, quote:
     }
     if b.kind.has_text() {
         let runs = b.text.runs.iter().map(|r| {
-            let mut f = font(if r.marks.code { theme::MONO_FONT } else { theme::UI_FONT });
+            let mut f = font(if r.marks.code { theme::MONO_FONT } else { theme::ui_font() });
             f.weight = if r.marks.bold { FontWeight::BOLD } else { bs::weight(&b.kind) };
             if r.marks.italic || quote { f.style = FontStyle::Italic; }
             let mut ink = if r.marks.link.is_some() { Theme::link() } else { r.marks.text_color.as_ref().and_then(|c| theme::text_color(&c.0)).map(bs::display_ink).unwrap_or(color) };

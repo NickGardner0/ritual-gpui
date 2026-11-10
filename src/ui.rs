@@ -7,7 +7,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub fn icon(name: &str, size: f32, color: Hsla) -> Svg {
-    svg().path(SharedString::from(format!("icons/{name}.svg"))).size(px(size)).flex_none().text_color(color)
+    let dir = if crate::ritual::appearance::zed_icons() && matches!(name, "doc" | "doc-md" | "folder" | "folder-open") {
+        "ritual/file-icons"
+    } else { "icons" };
+    svg().path(SharedString::from(format!("{dir}/{name}.svg"))).size(px(size)).flex_none().text_color(color)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -47,7 +50,7 @@ pub fn toast_el(kind: ToastKind, msg: &SharedString, t0: std::time::Instant, win
         .border_1()
         .border_color(Theme::line_border())
         .shadow(theme::shadow_panel())
-        .font_family(theme::UI_FONT)
+        .font_family(theme::ui_font())
         .text_size(px(13.))
         .line_height(px(20.))
         .text_color(Theme::text())
@@ -86,7 +89,7 @@ pub fn popover() -> Div {
         .border_color(Theme::line_border())
         .rounded(px(MENU_RADIUS))
         .shadow(theme::shadow_menu())
-        .font_family(theme::UI_FONT)
+        .font_family(theme::ui_font())
         .text_color(Theme::text())
 }
 
@@ -110,7 +113,7 @@ pub fn list_header_text() -> Hsla {
 
 /// Hairline under a list header and between rows (black 4.5%).
 pub fn list_line() -> Hsla {
-    theme::ca(craft::N1000, 0.045)
+    crate::ritual::appearance::palette().map_or_else(|| theme::ca(craft::N1000, 0.045), |p| p.border)
 }
 
 /// The quiet list hover: a rounded fill that also hides the row's
@@ -127,7 +130,7 @@ pub fn scrim() -> Hsla {
 
 /// The modal dialog: white, radius 16, deep soft drop.
 pub fn dialog(id: &'static str) -> Stateful<Div> {
-    div().id(id).occlude().rounded(px(16.)).bg(crate::theme::raised(Theme::bg_body())).shadow(theme::shadow_dialog()).font_family(theme::UI_FONT).text_color(Theme::text())
+    div().id(id).occlude().rounded(px(16.)).bg(crate::theme::raised(Theme::bg_body())).shadow(theme::shadow_dialog()).font_family(theme::ui_font()).text_color(Theme::text())
 }
 
 /// The primary button: the accent, a white 13pt semibold label, 30 tall, radius 9.
@@ -144,12 +147,12 @@ pub fn primary_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .cursor_pointer()
         .bg(Theme::primary())
         .shadow(theme::shadow_button())
-        .hover(|s| s.bg(theme::c(craft::B600)))
-        .active(|s| s.bg(theme::c(craft::B700)))
+        .hover(|s| s.bg(crate::ritual::appearance::palette().map_or_else(|| theme::c(craft::B600), |p| p.accent.opacity(0.85))))
+        .active(|s| s.bg(crate::ritual::appearance::palette().map_or_else(|| theme::c(craft::B700), |p| p.accent.opacity(0.7))))
         .text_size(px(13.))
         .line_height(px(20.))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(gpui::white())
+        .text_color(crate::ritual::appearance::palette().map_or_else(gpui::white, |p| if p.dark { p.page } else { gpui::white() }))
         .child(crate::settings::label(label))
 }
 
@@ -273,7 +276,7 @@ impl Render for Tooltip {
             .text_color(gpui::white())
             .text_size(px(12.))
             .line_height(px(TIP_LINE))
-            .font_family(theme::UI_FONT)
+            .font_family(theme::ui_font())
             .whitespace_nowrap()
             .flex()
             .flex_col()
@@ -284,7 +287,7 @@ impl Render for Tooltip {
         // 10px from the trigger with an arrow pointing at it, on the preferred
         // side unless it doesn't fit, and kept inside the window.
         let mut style = window.text_style();
-        style.font_family = theme::UI_FONT.into();
+        style.font_family = theme::ui_font().into();
         let text_w = lines
             .iter()
             .map(|l| {
@@ -618,7 +621,7 @@ fn truncated(line: &ShapedLine, runs: &[TextRun], suffix: &str, font_size: Pixel
     let mut suffix_runs: Vec<TextRun> = runs.last().cloned().into_iter().collect();
     if let Some(r) = suffix_runs.first_mut() {
         r.len = suffix.len();
-        r.font.family = theme::UI_FONT.into();
+        r.font.family = theme::ui_font().into();
     }
     let suffix_w = window.text_system().shape_line(suffix.to_string().into(), font_size, &suffix_runs, None).width;
     let mut cut = 0;

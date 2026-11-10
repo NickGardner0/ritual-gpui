@@ -399,7 +399,7 @@ impl Editor {
             .border_color(Theme::line_border())
             .rounded(px(MENU_RADIUS))
             .shadow(theme::shadow_s4_down())
-            .font_family(theme::UI_FONT)
+            .font_family(theme::ui_font())
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_scroll_wheel(cx.listener(|_, _, _, cx| cx.notify()))
             .when(tabs, |d| {

@@ -324,7 +324,7 @@ fn doc_geom(ix: usize, l: &crate::model::InlineDocLink, spec: &TextSpec, row_w: 
         None => (crate::settings::text("此文档已被删除").to_string(), None),
     };
     let font = Font {
-        family: theme::UI_FONT.into(),
+        family: theme::ui_font().into(),
         features: FontFeatures::default(),
         fallbacks: Some(FontFallbacks::from_fonts(vec!["PingFang SC".into(), "Apple Color Emoji".into()])),
         weight: if spec.weight.0 > 500. { spec.weight } else { FontWeight(500.) },
@@ -359,7 +359,7 @@ fn doc_geom(ix: usize, l: &crate::model::InlineDocLink, spec: &TextSpec, row_w: 
 fn reminder_geom(ix: usize, r: &crate::model::InlineReminder, spec: &TextSpec, window: &mut Window) -> EqGeom {
     let (fs, lh) = (spec.size, spec.line_height);
     let font = Font {
-        family: theme::UI_FONT.into(),
+        family: theme::ui_font().into(),
         features: FontFeatures::default(),
         fallbacks: Some(FontFallbacks::from_fonts(vec!["PingFang SC".into(), "Apple Color Emoji".into()])),
         weight: spec.weight,
@@ -394,7 +394,7 @@ fn reminder_geom(ix: usize, r: &crate::model::InlineReminder, spec: &TextSpec, w
 fn file_geom(ix: usize, f: &crate::model::FileBlock, spec: &TextSpec, row_w: f32, window: &mut Window) -> EqGeom {
     let (fs, lh) = (spec.size, spec.line_height);
     let font = Font {
-        family: theme::UI_FONT.into(),
+        family: theme::ui_font().into(),
         features: FontFeatures::default(),
         fallbacks: Some(FontFallbacks::from_fonts(vec!["PingFang SC".into(), "Apple Color Emoji".into()])),
         weight: spec.weight,
@@ -425,7 +425,7 @@ fn button_geom(ix: usize, b: &crate::model::InlineButton, editing: bool, spec: &
     let lh = spec.line_height;
     let wrap_lh = if heading { bh } else { lh };
     let font = Font {
-        family: theme::UI_FONT.into(),
+        family: theme::ui_font().into(),
         features: FontFeatures::default(),
         fallbacks: Some(FontFallbacks::from_fonts(vec!["PingFang SC".into(), "Apple Color Emoji".into()])),
         weight,
@@ -468,7 +468,7 @@ fn eq_geom(ix: usize, src: &str, fs: f32, row_w: f32, color: Hsla, eqno: u32, wi
         let error = parsed.is_some();
         let (label, tc) = if error { (crate::settings::text("无效公式"), Theme::text()) } else { (crate::settings::text("添加 LaTeX 公式"), Theme::text_caption()) };
         let font = Font {
-            family: theme::UI_FONT.into(),
+            family: theme::ui_font().into(),
             features: FontFeatures::default(),
             fallbacks: Some(FontFallbacks::from_fonts(vec!["PingFang SC".into()])),
             weight: FontWeight::NORMAL,
@@ -562,7 +562,7 @@ fn eq_geom(ix: usize, src: &str, fs: f32, row_w: f32, color: Hsla, eqno: u32, wi
 }
 
 fn font_for(spec: &TextSpec, m: &Marks) -> Font {
-    let family: SharedString = if spec.mono || m.code { theme::mono_font().into() } else if let Some(f) = spec.font { f.into() } else if spec.doc_font { theme::body_font().into() } else { theme::UI_FONT.into() };
+    let family: SharedString = if spec.mono || m.code { theme::mono_font().into() } else if let Some(f) = spec.font { f.into() } else if spec.doc_font { theme::body_font().into() } else { theme::ui_font().into() };
     Font {
         family,
         features: FontFeatures::default(),

@@ -45,6 +45,8 @@ thread_local! {
     static ADAPTED: std::cell::RefCell<std::collections::HashMap<[u32; 4], Hsla>> = std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
+pub fn exporting_light() -> bool { FORCE_LIGHT.with(|flag| flag.get()) }
+pub fn ui_font() -> &'static str { crate::ritual::appearance::ui_font() }
 pub fn dark() -> bool { DARK.load(Ordering::Relaxed) && !FORCE_LIGHT.with(|f| f.get()) }
 /// Switch the look; true when it changed.
 pub fn set_dark(on: bool) -> bool { DARK.swap(on, Ordering::Relaxed) != on }
@@ -148,7 +150,10 @@ pub fn c(hex: u32) -> Hsla {
 /// A surface above the page (menus, dialogs, toasts, buttons, the picked
 /// segment): `light` in the light look; in dark mode a step lighter than the
 /// page, as raised surfaces are.
-pub fn raised(light: Hsla) -> Hsla { if dark() { rgbaf(0x2c, 0x2c, 0x2e, 1.) } else { light } }
+pub fn raised(light: Hsla) -> Hsla {
+    if let Some(p) = crate::ritual::appearance::palette() { p.elevated }
+    else if dark() { rgbaf(0x2c, 0x2c, 0x2e, 1.) } else { light }
+}
 
 /// A literal colour, never adapted (shadows, scrims, glyphs over images).
 pub fn rgbaf(r: u8, g: u8, b: u8, a: f32) -> Hsla {
@@ -313,40 +318,46 @@ pub const MONO_FONT: &str = "Noto Sans Mono";
 
 pub struct Theme;
 
+// Use the selected workspace palette for chrome. Ritual's original appearance
+// and the upstream Quiet binary fall back to the existing adaptive colors.
+macro_rules! workspace_color {
+    ($role:ident, $fallback:expr) => { crate::ritual::appearance::palette().map_or_else(|| $fallback, |p| p.$role) };
+}
+
 impl Theme {
-    pub fn text() -> Hsla { c(craft::N900) }
+    pub fn text() -> Hsla { workspace_color!(text, c(craft::N900)) }
     /// Secondary text: dates, meta, captions of controls.
-    pub fn text_caption() -> Hsla { c(craft::N600) }
-    pub fn text_placeholder() -> Hsla { c(craft::N500) }
+    pub fn text_caption() -> Hsla { workspace_color!(muted, c(craft::N600)) }
+    pub fn text_placeholder() -> Hsla { workspace_color!(placeholder, c(craft::N500)) }
     /// Empty-block hints: placeholders are text at ~25%.
     pub fn block_placeholder() -> Hsla { ca(craft::N900, 0.25) }
-    pub fn text_disabled() -> Hsla { ca(craft::N900, 0.3) }
+    pub fn text_disabled() -> Hsla { workspace_color!(disabled, ca(craft::N900, 0.3)) }
     /// Toolbar glyphs.
-    pub fn text_code() -> Hsla { c(craft::N800) }
+    pub fn text_code() -> Hsla { workspace_color!(ink, c(craft::N800)) }
     /// The link colour: the content accent (#0087FF) blended half-way to the
     /// text colour, #0F5492 measured.
-    pub fn link() -> Hsla { mix(0x0087ff, craft::N900, 0.5) }
+    pub fn link() -> Hsla { workspace_color!(accent, mix(0x0087ff, craft::N900, 0.5)) }
     /// A hovered link or document chip: a step closer to the text colour.
-    pub fn link_hover() -> Hsla { mix(0x0087ff, craft::N900, 0.65) }
-    pub fn primary() -> Hsla { c(craft::B500) }
-    pub fn primary_500() -> Hsla { c(craft::B500) }
-    pub fn primary_fill_1() -> Hsla { c(craft::B50) }
+    pub fn link_hover() -> Hsla { workspace_color!(accent, mix(0x0087ff, craft::N900, 0.65)) }
+    pub fn primary() -> Hsla { workspace_color!(accent, c(craft::B500)) }
+    pub fn primary_500() -> Hsla { workspace_color!(accent, c(craft::B500)) }
+    pub fn primary_fill_1() -> Hsla { crate::ritual::appearance::palette().map_or_else(|| c(craft::B50), |p| p.accent.opacity(0.12)) }
     /// The note: white page.
-    pub fn bg_body() -> Hsla { c(craft::N00) }
+    pub fn bg_body() -> Hsla { workspace_color!(page, c(craft::N00)) }
     /// Light fills inside the note (code blocks, quiet cards).
-    pub fn bg_overlay() -> Hsla { c(craft::N100) }
-    pub fn line_divider() -> Hsla { ca(craft::N1000, 0.06) }
-    pub fn line_border() -> Hsla { ca(craft::N1000, 0.08) }
-    pub fn fill_hover() -> Hsla { ca(craft::N1000, 0.045) }
-    pub fn fill_hover_strong() -> Hsla { ca(craft::N1000, 0.06) }
-    pub fn fill_pressed() -> Hsla { ca(craft::N1000, 0.09) }
-    pub fn fill_turninto_active() -> Hsla { c(craft::B100) }
+    pub fn bg_overlay() -> Hsla { workspace_color!(surface, c(craft::N100)) }
+    pub fn line_divider() -> Hsla { workspace_color!(border, ca(craft::N1000, 0.06)) }
+    pub fn line_border() -> Hsla { workspace_color!(border, ca(craft::N1000, 0.08)) }
+    pub fn fill_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
+    pub fn fill_hover_strong() -> Hsla { workspace_color!(selected, ca(craft::N1000, 0.06)) }
+    pub fn fill_pressed() -> Hsla { workspace_color!(pressed, ca(craft::N1000, 0.09)) }
+    pub fn fill_turninto_active() -> Hsla { crate::ritual::appearance::palette().map_or_else(|| c(craft::B100), |p| p.accent.opacity(0.18)) }
     /// Text selection: the accent, light.
-    pub fn selection() -> Hsla { ca(craft::B500, 0.24) }
+    pub fn selection() -> Hsla { crate::ritual::appearance::palette().map_or_else(|| ca(craft::B500, 0.24), |p| p.accent.opacity(0.24)) }
     /// A block whose handle menu is open.
-    pub fn block_hover() -> Hsla { ca(craft::B500, 0.08) }
+    pub fn block_hover() -> Hsla { crate::ritual::appearance::palette().map_or_else(|| ca(craft::B500, 0.08), |p| p.accent.opacity(0.08)) }
     /// Selected blocks.
-    pub fn block_selected() -> Hsla { ca(craft::B500, 0.14) }
+    pub fn block_selected() -> Hsla { crate::ritual::appearance::palette().map_or_else(|| ca(craft::B500, 0.14), |p| p.accent.opacity(0.14)) }
     pub fn handle_active() -> Hsla { ca(craft::N1000, 0.06) }
     pub fn size_cell() -> Hsla { c(craft::N100) }
     pub fn size_cell_border() -> Hsla { c(craft::N300) }
@@ -361,11 +372,11 @@ impl Theme {
     pub fn scrollbar_thumb() -> Hsla { ca(craft::N1000, 0.22) }
     pub fn shadow() -> Hsla { ca(craft::N1000, 0.08) }
     /// Ring of a code block / callout whose handle menu is open.
-    pub fn code_hover_ring() -> Hsla { ca(craft::B500, 0.35) }
+    pub fn code_hover_ring() -> Hsla { workspace_color!(focus, ca(craft::B500, 0.35)) }
     /// The focus decoration: a rounded bar in the text colour.
     pub fn quote_bar() -> Hsla { ca(craft::N900, 0.82) }
     /// The caret is the accent, 2pt wide.
-    pub fn caret() -> Hsla { c(craft::B500) }
+    pub fn caret() -> Hsla { workspace_color!(accent, c(craft::B500)) }
     pub fn pinned() -> Hsla { c(craft::B500) }
     /// Table header row / column fill.
     pub fn table_header() -> Hsla { c(0xf8f8f8) }
@@ -375,34 +386,34 @@ impl Theme {
     pub fn table_bar_selected() -> Hsla { c(craft::B200) }
     pub fn danger_bar() -> Hsla { c(craft::R350) }
     pub fn danger_cell() -> Hsla { c(craft::R50) }
-    pub fn danger() -> Hsla { c(craft::R500) }
+    pub fn danger() -> Hsla { workspace_color!(error, c(craft::R500)) }
 
     // ---- Quiet.md shell
     /// A light gray tint separates the sidebar from the white page while keeping wallpaper colors quiet.
     /// The document pane paints its own opaque white surface.
-    pub fn window() -> Hsla { if crate::native_header::supported() { ca(craft::WINDOW, 0.) } else if crate::theme::glass() { ca(craft::WINDOW, 0.84) } else { ca(craft::WINDOW, 1.) } }
+    pub fn window() -> Hsla { workspace_color!(panel, if crate::native_header::supported() { ca(craft::WINDOW, 0.) } else if crate::theme::glass() { ca(craft::WINDOW, 0.84) } else { ca(craft::WINDOW, 1.) }) }
     /// Sidebar row label: text at 85%.
-    pub fn sidebar_text() -> Hsla { ca(craft::N900, 0.85) }
-    pub fn sidebar_hover() -> Hsla { ca(craft::N1000, 0.045) }
+    pub fn sidebar_text() -> Hsla { workspace_color!(text, ca(craft::N900, 0.85)) }
+    pub fn sidebar_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
     /// Selected sidebar row (measured #DEDEDF).
-    pub fn sidebar_selected() -> Hsla { ca(craft::N1000, 0.072) }
+    pub fn sidebar_selected() -> Hsla { workspace_color!(selected, ca(craft::N1000, 0.072)) }
     /// Dragging in the sidebar: the receiving folder's wash, the
     /// slot the row will land in, and the glow a landed row fades out from.
     pub fn sidebar_drop() -> Hsla { ca(craft::N1000, 0.05) }
     pub fn sidebar_drop_slot() -> Hsla { ca(craft::N1000, 0.08) }
     /// Renaming in the sidebar: the field's thin edge and the soft focus glow around it.
     pub fn sidebar_field_edge() -> Hsla { ca(craft::B500, 0.6) }
-    pub fn sidebar_field_ring() -> Hsla { ca(craft::B500, 0.16) }
+    pub fn sidebar_field_ring() -> Hsla { workspace_color!(focus, ca(craft::B500, 0.16)) }
     pub fn sidebar_landed() -> Hsla { ca(craft::N1000, 0.07) }
     /// Section headers on the sidebar.
-    pub fn sidebar_section() -> Hsla { c(0x333739) }
+    pub fn sidebar_section() -> Hsla { workspace_color!(text, c(0x333739)) }
     /// Normal monochrome icons: #191919 measured from the supplied Claude Code screenshot.
     /// Keep the existing adaptive tint in dark mode.
-    pub fn icon() -> Hsla { if dark() { ca(craft::N900, 0.6) } else { rgb(0x191919).into() } }
+    pub fn icon() -> Hsla { workspace_color!(icon, if dark() { ca(craft::N900, 0.6) } else { rgb(0x191919).into() }) }
     /// Line above the sidebar footer (1pt, black 3.5%, #E8E8E9 on the sidebar).
     /// Line under the page title.
     /// White pill buttons on the note (back / + / share): hairline.
-    pub fn button_border() -> Hsla { ca(craft::N1000, 0.075) }
+    pub fn button_border() -> Hsla { workspace_color!(border, ca(craft::N1000, 0.075)) }
     /// Inline code chip: #F8F8F8 in a #E2E3E3 rim (measured).
     pub fn code_chip() -> Hsla { c(0xf8f8f8) }
     pub fn code_chip_border() -> Hsla { c(0xe2e3e3) }
@@ -416,9 +427,9 @@ impl Theme {
     #[allow(dead_code)]
     pub fn caption() -> Hsla { c(0x7e8287) }
     /// The old accent menu highlight; kept as a theme token, menus now hover with `fill_hover`.
-    pub fn menu_highlight() -> Hsla { c(craft::B500) }
+    pub fn menu_highlight() -> Hsla { workspace_color!(accent, c(craft::B500)) }
     /// Menus / popovers body (quick-entry & native menus).
-    pub fn popover_bg() -> Hsla { c(0xfafafa) }
+    pub fn popover_bg() -> Hsla { workspace_color!(elevated, c(0xfafafa)) }
     /// Dotted separator: dots at half the text colour.
     pub fn separator_dots() -> Hsla { ca(craft::N900, 0.5) }
     /// Open task box rim.

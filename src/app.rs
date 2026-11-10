@@ -229,6 +229,7 @@ pub struct Workspace {
     pub settings_page: crate::settings::Page,
     /// 外观's theme dropdown while open: the theme its preview shows.
     pub theme_menu: Option<String>,
+    pub(crate) workspace_theme_picker: Option<Entity<crate::settings::AppearancePicker>>,
     /// Where the theme dropdown's button was drawn last frame.
     pub theme_anchor: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     /// 快捷键's filter field.
@@ -420,6 +421,7 @@ impl Workspace {
             shortcut_error: None,
             settings_page: Default::default(),
             theme_menu: None,
+            workspace_theme_picker: None,
             theme_anchor: Default::default(),
             settings_filter,
             store,
@@ -811,6 +813,7 @@ impl Workspace {
             page.update(cx, |h, cx| h.show_list(cx));
         }
         self.view = view;
+        self.workspace_theme_picker = None;
         self.row_menu = None;
         self.trash_menu = None;
         self.theme_menu = None;
@@ -1445,7 +1448,7 @@ impl Render for Workspace {
             .size_full()
             .flex()
             .bg(Theme::window())
-            .font_family(theme::UI_FONT)
+            .font_family(theme::ui_font())
             .text_color(Theme::text())
             // Window keys act on the window they were pressed in, not on
             // whichever window macOS considers active.
@@ -1562,7 +1565,12 @@ impl Render for Workspace {
             .children(toast);
         let inset = if self.sidebar_open { self.sidebar_w(window) } else { 0. };
         let composer = self.composer.as_ref().filter(|c| c.read(cx).expanded).cloned();
-        div().relative().size_full().child(workspace).when_some(composer, |d, composer| {
+        div().relative().size_full().child(workspace).when_some(self.workspace_theme_picker.clone(), |d, picker| {
+            d.child(div().id("workspace-theme-scrim").absolute().inset_0().occlude()
+                .on_mouse_down(MouseButton::Left, cx.listener(|w, _, window, cx| {
+                    w.workspace_theme_picker = None; w.focus.focus(window); cx.notify();
+                })).child(picker))
+        }).when_some(composer, |d, composer| {
             d.child(div().id("ritual-composer-overlay").absolute().inset_0().occlude().bg(crate::ui::scrim())
                 .flex().items_center().justify_center()
                 .pl(px(inset.min((f32::from(window.viewport_size().width) - 640.).max(0.))))

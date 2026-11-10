@@ -11,6 +11,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 
+mod appearance;
+pub(crate) use appearance::Picker as AppearancePicker;
+use crate::ritual::appearance as workspace_theme;
+
 // ---- preferences
 
 static FEISHU: AtomicBool = AtomicBool::new(false);
@@ -48,6 +52,8 @@ pub struct Preferences {
     pub auto_update: bool,
     /// Light or dark look: "light", "dark", or empty to follow the system.
     pub appearance: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) ritual_appearance: Option<workspace_theme::Options>,
     /// The last version that opened this library (changelog.rs).
     pub seen_version: String,
     /// 动画: "high" animates folding, the selection and hover; empty keeps them instant.
@@ -70,10 +76,20 @@ fn system_english() -> bool {
 }
 
 impl Default for Preferences {
-    fn default() -> Self { Preferences { theme: String::new(), feishu: true, english: system_english(), remote_images: true, quick_hotkey: true, auto_update: true, appearance: String::new(), seen_version: String::new(), motion: String::new(), new_default: String::new(), last_new: String::new() } }
+    fn default() -> Self { Preferences { theme: String::new(), feishu: true, english: system_english(), remote_images: true, quick_hotkey: true, auto_update: true, appearance: String::new(), ritual_appearance: None, seen_version: String::new(), motion: String::new(), new_default: String::new(), last_new: String::new() } }
 }
 
 impl Preferences {
+    fn workspace_options(&self) -> workspace_theme::Options {
+        self.ritual_appearance.clone().unwrap_or_else(|| {
+            let mut options = workspace_theme::Options::default();
+            options.colors.mode = match self.appearance.as_str() {
+                "light" => workspace_theme::Mode::Light, "dark" => workspace_theme::Mode::Dark, _ => workspace_theme::Mode::System,
+            };
+            options
+        })
+    }
+
     pub fn theme_id(&self) -> String {
         if !self.theme.is_empty() { self.theme.clone() } else if self.feishu { "feishu".into() } else { "craft".into() }
     }
@@ -114,8 +130,47 @@ pub fn apply_appearance(pref: &str) {
     let _ = pref;
 }
 
+/// NSApp.effectiveAppearance includes our own override. Icon and color themes
+/// each need the OS preference, even when the other one is fixed.
+fn system_dark(cx: &App) -> bool {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        use objc::{class, msg_send, sel, sel_impl};
+        use objc::runtime::{Object, BOOL, YES};
+        let defaults: *mut Object = msg_send![class!(NSUserDefaults), standardUserDefaults];
+        let key: *mut Object = msg_send![class!(NSString), stringWithUTF8String:c"AppleInterfaceStyle".as_ptr()];
+        let value: *mut Object = msg_send![defaults, stringForKey:key];
+        if value.is_null() { return false; }
+        let dark: *mut Object = msg_send![class!(NSString), stringWithUTF8String:c"Dark".as_ptr()];
+        let matches: BOOL = msg_send![value, isEqualToString:dark];
+        let _ = cx;
+        matches == YES
+    }
+    #[cfg(not(target_os = "macos"))]
+    { matches!(cx.window_appearance(), WindowAppearance::Dark | WindowAppearance::VibrantDark) }
+}
+
+pub(crate) fn apply_native(p: &Preferences, cx: &App) {
+    if cx.has_global::<crate::ritual::Profile>() {
+        let options = p.workspace_options();
+        let os_dark = system_dark(cx);
+        let palette_dark = workspace_theme::resolve(&options.colors, os_dark).1;
+        let follows_os = options.colors.fixed.is_none() && options.colors.mode == workspace_theme::Mode::System;
+        let native = if follows_os && palette_dark == os_dark { "" } else if palette_dark { "dark" } else { "light" };
+        cx.foreground_executor().spawn(async move { apply_appearance(native); }).detach();
+    } else {
+        let appearance = p.appearance.clone();
+        cx.foreground_executor().spawn(async move { apply_appearance(&appearance); }).detach();
+    }
+}
+
 /// Draw light or dark as the preference and the system say; true when the look changed.
 pub fn sync_dark(cx: &App) -> bool {
+    if cx.has_global::<crate::ritual::Profile>() {
+        let changed = workspace_theme::apply(&prefs().workspace_options(), system_dark(cx), cx);
+        if changed { themes::touch(); }
+        return changed;
+    }
     let on = match prefs().appearance.as_str() {
         "light" => false,
         "dark" => true,
@@ -148,8 +203,9 @@ pub(crate) fn save(p: &Preferences) -> anyhow::Result<()> {
 /// Redraw every window's document after the theme or language changed.
 pub(crate) fn refresh_all(this: &mut Workspace, cx: &mut Context<Workspace>) {
     fn refresh(ws: &mut Workspace, cx: &mut Context<Workspace>) {
-        ws.settings_filter.update(cx, |f, cx| { f.placeholder_color = Theme::text_disabled(); f.set_placeholder(tr("搜索快捷键", "Search shortcuts"), cx) });
-        ws.search.update(cx, |f, _| f.placeholder_color = Theme::text_disabled());
+        ws.settings_filter.update(cx, |f, cx| { f.color = Theme::text(); f.placeholder_color = Theme::text_disabled(); f.set_placeholder(tr("搜索快捷键", "Search shortcuts"), cx) });
+        ws.search.update(cx, |f, cx| { f.color = Theme::text(); f.placeholder_color = Theme::text_disabled(); cx.notify(); });
+        if let Some(habits) = &ws.habits { habits.update(cx, |h, cx| h.refresh_colors(cx)); }
         if let Some(editor) = &ws.editor {
             editor.update(cx, |e, cx| { e.cache.borrow_mut().clear(); e.refresh_theme(); cx.notify(); });
         }
@@ -183,12 +239,24 @@ fn open_in_editor(p: &std::path::Path, cx: &mut App) {
 pub(crate) fn watch_themes(cx: &mut Context<Workspace>) {
     static LAST: Mutex<Option<Vec<(std::path::PathBuf, std::time::SystemTime, u64)>>> = Mutex::new(None);
     *LAST.lock().unwrap() = Some(themes::stamp());
-    cx.spawn(async |this, cx| loop {
+    let mut last_system_dark = system_dark(cx);
+    cx.spawn(async move |this, cx| loop {
         cx.background_executor().timer(std::time::Duration::from_millis(800)).await;
         let now = cx.background_executor().spawn(async { themes::stamp() }).await;
         let changed = { let mut l = LAST.lock().unwrap(); let c = l.as_ref() != Some(&now); *l = Some(now); c };
-        if changed && this.update(cx, |w, cx| w.reload_themes(cx)).is_err() { break }
-        if this.upgrade().is_none() { break }
+        if this.update(cx, |w, cx| {
+            if changed { w.reload_themes(cx); }
+            // A pinned NSApp appearance can mask the OS notification. The icon
+            // and color selections may independently follow the system.
+            if cx.has_global::<crate::ritual::Profile>() {
+                let now_dark = system_dark(cx);
+                if now_dark != last_system_dark {
+                    last_system_dark = now_dark;
+                    apply_native(&prefs(), cx);
+                    if sync_dark(cx) { refresh_all(w, cx); }
+                }
+            }
+        }).is_err() { break }
     }).detach();
 }
 
@@ -261,13 +329,13 @@ pub(crate) fn switch(id: impl Into<ElementId>, on: bool) -> Stateful<Div> {
 
 /// A segmented control: a grey groove and a white selected pill.
 fn segmented(id: &'static str, labels: &[&'static str], selected: usize, on: impl Fn(&mut Workspace, usize, &mut Context<Workspace>) + Clone + 'static, cx: &mut Context<Workspace>) -> Div {
-    div().flex_none().h(px(28.)).p(px(2.)).flex().gap(px(2.)).rounded(px(9.)).bg(Theme::fill_hover_strong())
+    div().flex_none().h(px(28.)).p(px(2.)).flex().gap(px(2.)).rounded(px(9.)).bg(workspace_theme::palette().map_or_else(Theme::fill_hover_strong, |p| p.hover))
         .children(labels.iter().enumerate().map(|(i, label)| {
             let on = on.clone();
             div().id((id, i)).h_full().px(px(12.)).flex().items_center().justify_center().rounded(px(7.)).cursor_pointer()
                 .text_size(px(13.)).line_height(px(18.))
                 // In dark mode the picked segment is lighter than the groove (macOS: #636366).
-                .when(i == selected, |d| d.bg(if theme::dark() { theme::rgbaf(0x63, 0x63, 0x66, 1.) } else { Theme::bg_body() }).shadow(theme::shadow_button()).text_color(Theme::text()))
+                .when(i == selected, |d| d.bg(workspace_theme::palette().map_or_else(|| if theme::dark() { theme::rgbaf(0x63, 0x63, 0x66, 1.) } else { Theme::bg_body() }, |p| p.selected)).shadow(theme::shadow_button()).text_color(Theme::text()))
                 .when(i != selected, |d| d.text_color(Theme::text_caption()).hover(|s| s.text_color(Theme::text())))
                 .child(*label)
                 .on_click(cx.listener(move |w, _, _, cx| on(w, i, cx)))
@@ -491,8 +559,9 @@ impl Workspace {
         if p.quick_hotkey != old.quick_hotkey {
             if p.quick_hotkey { crate::quick_note::register(cx); } else { crate::quick_note::suspend_hotkey(); }
         }
-        if p.appearance != old.appearance { apply_appearance(&p.appearance); }
-        if p.theme_id() != old.theme_id() || p.english != old.english || sync_dark(cx) {
+        if p.appearance != old.appearance || p.ritual_appearance != old.ritual_appearance { apply_native(&p, cx); }
+        let appearance_changed = sync_dark(cx);
+        if p.theme_id() != old.theme_id() || p.english != old.english || appearance_changed {
             refresh_all(self, cx);
         }
         cx.notify();
@@ -558,7 +627,7 @@ impl Workspace {
                 .child(title)
                 .on_click(cx.listener(move |w, _, _, cx| match page { Some(p) => w.open_settings(p, cx), None => w.show_view(View::Trash, cx) }))
         };
-        div().w(px(self.sidebar_w(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::UI_FONT)
+        div().w(px(self.sidebar_w(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::ui_font())
             .child(div().h(px(crate::app::HEADER_H)).flex_none().flex().items_center().pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(12.)).title_bar().child(self.header_navigation(cx))
                 .child(div().flex_1()).children(update_pill(cx)))
             // The document sidebar's rhythm: 主页 sits 8 under the bar, a section
@@ -609,7 +678,7 @@ impl Workspace {
             Page::Library => self.library_page(cx),
             Page::About => self.about_page(cx),
         };
-        div().flex_1().min_w_0().h_full().flex().flex_col().bg(Theme::bg_body()).text_color(Theme::text()).font_family(theme::UI_FONT)
+        div().flex_1().min_w_0().h_full().flex().flex_col().bg(Theme::bg_body()).text_color(Theme::text()).font_family(theme::ui_font())
             // The bar only drags the window; the page title heads the centred column.
             .child(div().h(px(crate::app::HEADER_H)).flex_none().flex().items_center().title_bar()
                 .when(!self.sidebar_open, |d| d.pl(px(theme::TRAFFIC_LIGHTS_W)).child(self.header_navigation(cx))))
@@ -674,14 +743,16 @@ impl Workspace {
         let shown = { let list = themes::themes(); list.iter().find(|t| t.id == current).or_else(|| list.first()).map(|t| sample_page(t, PAGE_S).rounded(px(7.))) };
         let sample = div().w_full().px(px(16.)).py(px(16.)).flex().justify_center().bg(Theme::fill_hover())
             .child(div().w_full().h(px(360.)).rounded(px(8.)).overflow_hidden().border_1().border_color(Theme::line_border()).shadow(theme::shadow_button()).children(shown));
-        div().w_full().flex().flex_col().gap(px(28.))
-            .child(div().w_full().flex().flex_col().gap(px(8.))
-                .child(group(None, vec![
-                    row(tr("外观", "Appearance"), None, {
+        let ritual = cx.has_global::<crate::ritual::Profile>();
+        let classic_appearance = (!ritual).then(|| row(tr("外观", "Appearance"), None, {
                         let at = match prefs().appearance.as_str() { "light" => 1, "dark" => 2, _ => 0 };
                         segmented("appearance", &[tr("跟随系统", "System"), tr("浅色", "Light"), tr("深色", "Dark")], at,
                             |w, i, cx| w.set_pref(|p| p.appearance = ["", "light", "dark"][i].into(), cx), cx)
-                    }).into_any_element(),
+                    }).into_any_element());
+        div().w_full().flex().flex_col().gap(px(28.))
+            .when(ritual, |d| d.child(self.workspace_appearance_groups(cx)))
+            .child(div().w_full().flex().flex_col().gap(px(8.))
+                .child(group(if ritual { Some(tr("文档与动画", "Documents and animation")) } else { None }, classic_appearance.into_iter().chain([
                     row(tr("动画", "Animation"), Some(tr("克制：切换即时，只有拖拽带动画。丰富：展开收起、选中和悬停也带动画。", "Low: switching is instant, only dragging animates. High: folding, selection and hover animate too.").into()),
                         segmented("motion", &[tr("克制", "Low"), tr("丰富", "High")], usize::from(prefs().motion == "high"),
                             |w, i, cx| w.set_pref(|p| p.motion = ["", "high"][i].into(), cx), cx)).into_any_element(),
@@ -693,7 +764,7 @@ impl Workspace {
                                 .on_click(cx.listener(move |w, _, _, cx| w.remove_theme(&rm_id, cx)))))
                             .child(button("theme-duplicate", tr("复制为新主题", "Duplicate")).on_click(cx.listener(move |w, _, _, cx| w.duplicate_theme(&dup_id, cx))))
                             .child(button("theme-edit", tr("编辑 CSS", "Edit CSS")).on_click(cx.listener(move |w, _, _, cx| w.edit_theme(&edit_id, cx))))).into_any_element(),
-                ]))
+                ]).collect()))
                 .children(errors.into_iter().chain(warnings.into_iter().take(8).map(|w| format!("{}：{w}", tr("未生效", "Ignored")))).map(|e| div().px(px(4.)).text_size(px(12.)).line_height(px(18.)).text_color(Theme::danger()).child(e)))
                 )
             .into_any_element()
@@ -1350,7 +1421,20 @@ mod localization_tests {
 
 #[cfg(test)]
 mod preference_tests {
-    use super::Preferences;
+    use super::{Preferences, workspace_theme};
+
+    #[test]
+    fn old_appearance_preferences_migrate_without_changing_document_style() {
+        for (name, expected) in [("", workspace_theme::Mode::System), ("light", workspace_theme::Mode::Light), ("dark", workspace_theme::Mode::Dark)] {
+            let json = serde_json::json!({"appearance": name, "theme": "notion"});
+            let old: Preferences = serde_json::from_value(json).unwrap();
+            let options = old.workspace_options();
+            assert_eq!(options.colors.mode, expected);
+            assert_eq!(old.theme_id(), "notion");
+            assert!(old.ritual_appearance.is_none());
+            assert!(!serde_json::to_string(&old).unwrap().contains("ritual_appearance"));
+        }
+    }
 
     #[test]
     fn new_preferences_use_feishu_without_overriding_saved_themes() {

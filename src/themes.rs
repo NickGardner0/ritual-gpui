@@ -213,6 +213,12 @@ impl Style {
         BY_KEY.get(key).map(|&i| if self.feishu { PROPS[i].feishu } else { PROPS[i].craft }).unwrap_or(Def::Unused)
     }
     pub fn num(&self, key: &str) -> f32 {
+        if matches!(key, "page.size" | "page.line") && let Some(size) = crate::ritual::appearance::document_size() {
+            return if key == "page.size" { size } else { self.base_num("page.line") * size / self.base_num("page.size").max(1.) };
+        }
+        self.base_num(key)
+    }
+    fn base_num(&self, key: &str) -> f32 {
         match self.values.get(key) {
             Some(Val::N(n)) => *n,
             _ => match self.def(key) {
@@ -241,6 +247,7 @@ impl Style {
         }
     }
     pub fn font(&self, key: &str) -> &'static str {
+        if key == "page.font" && let Some(font) = crate::ritual::appearance::document_font() { return font; }
         match self.values.get(key) {
             Some(Val::F(f)) => f,
             _ => match self.def(key) { Def::Family(f) => f, _ => SYSTEM },

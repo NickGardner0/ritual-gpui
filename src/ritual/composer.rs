@@ -36,6 +36,10 @@ struct ComposerColors {
 
 impl ComposerColors {
     fn current() -> Self {
+        if let Some(p) = super::appearance::palette() {
+            return Self { surface: p.surface, text: p.text, secondary: p.muted, muted: p.placeholder, icon: p.icon,
+                on_send: p.page, action_fill: p.hover, mode_track: p.hover, mode_selected: p.selected, send_disabled: p.disabled };
+        }
         let dark = crate::theme::dark();
         let color = |light, night| rgb(if dark { night } else { light }).into();
         let text: Hsla = color(0x111111, 0xf7f7f3);

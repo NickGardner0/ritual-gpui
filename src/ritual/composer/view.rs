@@ -173,7 +173,7 @@ impl Render for Composer {
     fn render(&mut self, w: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = ComposerColors::current();
         let input = self.input.read(cx);
-        let family = input.font.unwrap_or(theme::UI_FONT);
+        let family = input.font.unwrap_or(theme::ui_font());
         if input.color != colors.text || input.placeholder_color != colors.muted {
             self.input.update(cx, |field, cx| {
                 field.color = colors.text;

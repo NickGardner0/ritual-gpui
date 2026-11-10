@@ -80,7 +80,7 @@ pub(crate) fn snippet(body: &str, q: &str) -> Option<(String, Vec<Range<usize>>)
 /// `line_clamp` truncates at twice the width, ignoring wrap leftovers.
 pub(crate) fn summary_text(text: String, mut hits: Vec<Range<usize>>, width: f32, window: &Window) -> StyledText {
     let mut style = window.text_style();
-    style.font_family = theme::UI_FONT.into();
+    style.font_family = theme::ui_font().into();
     style.font_size = px(12.).into();
     style.color = Theme::text_caption();
     let lines = |s: &str| {
