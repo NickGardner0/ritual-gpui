@@ -219,6 +219,7 @@ pub struct Rename {
 pub struct Workspace {
     pub(crate) habits: Option<Entity<crate::ritual::Habits>>,
     habit_picker: Option<Entity<crate::ritual::Picker>>,
+    pub(crate) composer: Option<Entity<crate::ritual::Composer>>,
     before_picker: Option<FocusHandle>,
     pub quick_note: bool,
     pub shortcut_recording: Option<String>,
@@ -411,6 +412,7 @@ impl Workspace {
         let mut ws = Workspace {
             habits: None,
             habit_picker: None,
+            composer: None,
             before_picker: None,
             quick_note: quick,
             shortcut_recording: None,
@@ -476,7 +478,14 @@ impl Workspace {
         ws.load_home();
         if !quick && cx.has_global::<crate::ritual::Profile>() {
             ws.home.tab = crate::home::HomeTab::Habits;
-            ws.habits = Some(cx.new(|cx| crate::ritual::Habits::new(ws.store.settings().ritual_habits_grid, window, cx)));
+            let habits = cx.new(|cx| crate::ritual::Habits::new(ws.store.settings().ritual_habits_grid, window, cx));
+            let composer = cx.new(|cx| crate::ritual::Composer::new(habits.clone(), window, cx));
+            ws._subs.push(cx.subscribe_in(&composer, window, |ws, _, _: &crate::ritual::PresentationChanged, _, cx| {
+                cx.notify();
+                ws.home.sort_menu = false;
+            }));
+            ws.composer = Some(composer);
+            ws.habits = Some(habits);
         }
         // An empty library opens on 主页's empty state; only a quick note
         // window starts a document of its own.
@@ -1552,7 +1561,15 @@ impl Render for Workspace {
             .children(import_menu)
             .children(toast);
         let inset = if self.sidebar_open { self.sidebar_w(window) } else { 0. };
-        div().relative().size_full().child(workspace).when_some(self.habit_picker.clone(), |d, picker| {
+        let composer = self.composer.as_ref().filter(|c| c.read(cx).expanded).cloned();
+        div().relative().size_full().child(workspace).when_some(composer, |d, composer| {
+            d.child(div().id("ritual-composer-overlay").absolute().inset_0().occlude().bg(crate::ui::scrim())
+                .flex().items_center().justify_center()
+                .pl(px(inset.min((f32::from(window.viewport_size().width) - 640.).max(0.))))
+                .on_mouse_down(MouseButton::Left, cx.listener(|ws, _, window, cx| {
+                    if let Some(c) = &ws.composer { c.update(cx, |p, cx| p.collapse(window, cx)); }
+                })).child(composer))
+        }).when_some(self.habit_picker.clone(), |d, picker| {
             d.child(div().absolute().inset_0().occlude().bg(Theme::bg_body().opacity(0.80))
                 .flex().items_center().justify_center().pl(px(inset.min((f32::from(window.viewport_size().width) - 480.).max(0.))))
                 .on_mouse_down(MouseButton::Left, cx.listener(|ws, _, window, cx| {

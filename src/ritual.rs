@@ -2,6 +2,8 @@
 mod view;
 mod picker;
 mod catalog;
+mod composer;
+pub(crate) use composer::{Composer, PresentationChanged};
 pub(crate) use picker::{Picker, PickerClosed};
 
 use crate::input::{self, TextField, TextFieldEvent};
@@ -19,6 +21,9 @@ pub fn run() { crate::run_workspace(true); }
 
 pub(super) fn bind_keys(cx: &mut App) {
     cx.bind_keys([
+        KeyBinding::new("escape", input::Cancel, Some("RitualComposer")),
+        KeyBinding::new("tab", input::Tab, Some("RitualComposer")),
+        KeyBinding::new("shift-tab", input::ShiftTab, Some("RitualComposer")),
         KeyBinding::new("escape", input::Cancel, Some("HabitPicker")),
         KeyBinding::new("enter", input::Submit, Some("HabitPicker")),
         KeyBinding::new("tab", input::Tab, Some("HabitPicker")),

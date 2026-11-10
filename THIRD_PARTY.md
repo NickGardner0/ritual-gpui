@@ -788,3 +788,5 @@ Windows 安装包随附未修改的 Microsoft Visual C++ Runtime `vcruntime140.d
 ## Ritual Dev provider marks
 
 The seven marks in `assets/ritual/providers/` identify Screen Time, Apple, Oura, Whoop, Fitbit, Garmin, and Plaid. They come from Ritual Desktop’s [provider picker](https://github.com/NickGardner0/ritual-desktop-main/tree/4afdc5e6/apps/dashboard/components/habit-selection) and [image assets](https://github.com/NickGardner0/ritual-desktop-main/tree/4afdc5e6/apps/dashboard/public/images). They are separate from Quiet.md’s Nucleo icon collection. The Computer Use monitor icon comes from lucide-react (ISC; see [license](assets/icons/LICENSE-lucide)).
+
+The three composer icons in `assets/ritual/composer/` are from lucide-react (ISC, [license](assets/icons/LICENSE-lucide)).

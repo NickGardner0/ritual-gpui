@@ -86,6 +86,8 @@ pub struct TextField {
     pub wrap: bool,
     /// Enter and pasted newlines insert line breaks; Up/Down move by line.
     pub multiline: bool,
+    /// A composer sends on Return and inserts a line break on Shift+Return.
+    pub submit_on_enter: bool,
     pub mono: bool,
     /// Longest text in chars (longer input is cut off).
     pub max_len: Option<usize>,
@@ -130,6 +132,7 @@ impl TextField {
             align: Align::Left,
             wrap: false,
             multiline: false,
+            submit_on_enter: false,
             mono: false,
             max_len: None,
             digits: false,
@@ -305,7 +308,7 @@ impl TextField {
     }
 
     fn submit(&mut self, _: &Submit, _: &mut Window, cx: &mut Context<Self>) {
-        if self.multiline {
+        if self.multiline && !self.submit_on_enter {
             return self.replace(self.sel.clone(), "\n", cx);
         }
         cx.emit(TextFieldEvent::Submit);

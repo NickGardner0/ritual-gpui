@@ -730,6 +730,8 @@ impl Workspace {
             .child(header)
             .child(toolbar)
             .child(body)
+            .when(tracking, |d| d.children(self.composer.as_ref().filter(|c| !c.read(cx).expanded).cloned()
+                .map(|composer| div().w_full().flex_none().flex().justify_center().px(px(18.)).pb(px(20.)).child(composer))))
             .into_any_element()
     }
 
