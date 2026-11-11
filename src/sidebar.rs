@@ -88,6 +88,15 @@ impl Workspace {
         self.sidebar_width.clamp(theme::SIDEBAR_MIN, max)
     }
 
+    pub(crate) fn sidebar_inset(&self, window: &Window) -> f32 {
+        if self.sidebar_open { self.sidebar_w(window) }
+        else if self.navigation.is_some() { crate::ritual::RAIL_WIDTH } else { 0. }
+    }
+
+    pub(crate) fn panel_width(&self, window: &Window) -> f32 {
+        self.sidebar_w(window) - if self.navigation.is_some() { crate::ritual::RAIL_WIDTH } else { 0. }
+    }
+
     pub(crate) fn render_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let entries: Vec<Entry> = self.entries.clone();
         self.more_bounds.borrow_mut().clear();
@@ -230,16 +239,15 @@ impl Workspace {
             });
 
         div()
-            .w(px(self.sidebar_w(window)))
+            .w(px(self.panel_width(window)))
             .flex_none()
             .h_full()
             .flex()
             .flex_col()
-            .child(header)
-            .child(nav)
+            .when(self.navigation.is_none(), |d| d.child(header).child(nav))
             .child(div().id("doc-list").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.list_scroll).child(list))
             .children(crate::changelog::card(cx.listener(|_, _, _, cx| cx.notify())))
-            .child(footer)
+            .when(self.navigation.is_none() || self.batch.is_some(), |d| d.child(footer))
             .into_any_element()
     }
 

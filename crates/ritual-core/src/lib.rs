@@ -1,4 +1,7 @@
 //! Local habit definitions and manual entries for Ritual.
+mod spaces;
+pub use spaces::{Space, SpaceIndex, Thread};
+
 use anyhow::{Context, Result, bail, ensure};
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, Utc};
 use rusqlite::{Connection, Row, TransactionBehavior, params};
@@ -94,11 +97,9 @@ impl Store {
         db.pragma_update(None, "foreign_keys", true)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        match version {
-            0 => tx.execute_batch(include_str!("001_habits.sql"))?,
-            1 => (),
-            _ => bail!("Unsupported Ritual database version {version}"),
-        }
+        if !(0..=2).contains(&version) { bail!("Unsupported Ritual database version {version}"); }
+        if version < 1 { tx.execute_batch(include_str!("001_habits.sql"))?; }
+        if version < 2 { tx.execute_batch(include_str!("002_spaces.sql"))?; }
         tx.commit()?;
         Ok(Self(db))
     }
@@ -149,6 +150,14 @@ impl Store {
             "This submission already saved a different log.");
         tx.commit()?;
         Ok(entry)
+    }
+
+    pub fn all_logs(&self) -> Result<Vec<(String, String, Entry)>> {
+        let mut query = self.0.prepare("SELECT l.id, l.habit_id, l.client_event_id, l.amount, l.date,
+            l.completed_at, l.utc_offset_seconds, l.source, l.status, h.name, h.unit_type
+            FROM habit_logs l JOIN habits h ON h.id = l.habit_id ORDER BY l.completed_at DESC, l.id DESC")?;
+        Ok(query.query_map([], |r| Ok((r.get(9)?, r.get(10)?, Entry::read(r)?)))?
+            .collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn history(&self, habit_id: Uuid) -> Result<Vec<Entry>> {

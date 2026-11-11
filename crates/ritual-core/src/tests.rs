@@ -77,3 +77,33 @@ fn home_index_keeps_empty_habits_and_summarizes_each_unit_after_reopen() -> Resu
     assert_eq!((row(read.id).count, row(read.id).value()), (0, 0.));
     Ok(())
 }
+
+#[test]
+fn upgrading_a_water_library_preserves_logs_and_both_kinds_of_thread() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("ritual.sqlite3");
+    let old = Connection::open(&path)?;
+    old.execute_batch(include_str!("001_habits.sql"))?;
+    let mut old = Store(old);
+    let water = old.create_habit(Uuid::new_v4(), "Water", "Health", "glasses")?;
+    let entry = old.append(&ManualLog::now(water.id, 2.))?;
+    drop(old);
+
+    let mut db = Store::open(&path)?;
+    let space = db.create_space(" Sleep ", "Review evenings")?;
+    let inside = db.start_thread(Some(space.id), "Evening walk")?;
+    let loose = db.start_thread(None, "Water intake")?;
+    db.add_message(inside.id, "After dinner")?;
+    assert!(db.start_thread(Some(Uuid::new_v4()), "Orphan").is_err());
+    assert!(db.start_thread(None, "   ").is_err());
+    drop(db);
+
+    let db = Store::open(&path)?;
+    let index = db.space_index()?;
+    assert_eq!(index.spaces, [space]);
+    assert_eq!(index.threads, [loose.clone(), inside.clone()]);
+    assert_eq!(db.messages(inside.id)?, ["Evening walk", "After dinner"]);
+    assert_eq!(db.messages(loose.id)?, ["Water intake"]);
+    assert_eq!(db.all_logs()?, [("Water".into(), "glasses".into(), entry)]);
+    Ok(())
+}

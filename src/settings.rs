@@ -206,6 +206,7 @@ pub(crate) fn refresh_all(this: &mut Workspace, cx: &mut Context<Workspace>) {
     fn refresh(ws: &mut Workspace, cx: &mut Context<Workspace>) {
         ws.settings_filter.update(cx, |f, cx| { f.color = Theme::text(); f.placeholder_color = Theme::text_disabled(); f.set_placeholder(tr("搜索快捷键", "Search shortcuts"), cx) });
         ws.search.update(cx, |f, cx| { f.color = Theme::text(); f.placeholder_color = Theme::text_disabled(); cx.notify(); });
+        if let Some(nav) = &ws.navigation { nav.refresh_colors(cx); }
         if let Some(habits) = &ws.habits { habits.update(cx, |h, cx| h.refresh_colors(cx)); }
         if let Some(editor) = &ws.editor {
             editor.update(cx, |e, cx| { e.cache.borrow_mut().clear(); e.refresh_theme(); cx.notify(); });
@@ -628,9 +629,9 @@ impl Workspace {
                 .child(title)
                 .on_click(cx.listener(move |w, _, _, cx| match page { Some(p) => w.open_settings(p, cx), None => w.show_view(View::Trash, cx) }))
         };
-        div().w(px(self.sidebar_w(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::ui_font())
-            .child(div().h(px(crate::app::HEADER_H)).flex_none().flex().items_center().pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(12.)).title_bar().child(self.header_navigation(cx))
-                .child(div().flex_1()).children(update_pill(cx)))
+        div().w(px(self.panel_width(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::ui_font())
+            .when(self.navigation.is_none(), |d| d.child(div().h(px(crate::app::HEADER_H)).flex_none().flex().items_center().pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(12.)).title_bar().child(self.header_navigation(cx))
+                .child(div().flex_1()).children(update_pill(cx))))
             .child(div().pt(px(8.)).px(px(sb::SB_X)).flex().flex_col()
                 .child(div().h(px(sb::SECTION_H)).pl(px(4.)).pt(px((sb::SECTION_TOP + sb::SECTION_H) / 2. - metrics().nav_height / 2.))
                     .child(div().px(px(4.)).text_size(px(13.)).line_height(px(20.)).font_weight(FontWeight::SEMIBOLD).text_color(Theme::sidebar_section()).child(tr("设置", "Settings"))))

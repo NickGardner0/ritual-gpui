@@ -1,6 +1,12 @@
 //! Tracked habits on the Ritual Home tab.
 mod view;
 pub(crate) mod appearance;
+mod navigation;
+mod rail;
+mod pages;
+pub use navigation::{Page, Destination};
+pub(crate) use navigation::Navigation;
+pub(crate) use rail::RAIL_WIDTH;
 mod picker;
 mod catalog;
 mod composer;
@@ -49,6 +55,7 @@ fn database_path() -> Result<PathBuf> {
 pub(crate) struct Habits {
     db: Option<Arc<Mutex<Store>>>,
     habits: Vec<TrackedHabit>,
+    spaces: Arc<ritual_core::SpaceIndex>,
     pub(crate) grid: bool,
     selected: Option<Uuid>,
     history: Option<Vec<Entry>>,
@@ -77,7 +84,7 @@ impl Habits {
             }
         })];
         subscriptions.push(cx.observe_window_appearance(window, |this, _, cx| this.refresh_colors(cx)));
-        let mut this = Self { db: None, habits: vec![], selected: None, history: None, history_request: 0,
+        let mut this = Self { db: None, habits: vec![], spaces: Default::default(), selected: None, history: None, history_request: 0,
             grid, saving: false, quit_after_save: false, log_draft: None, error: None,
             amount, focus: cx.focus_handle(),
             _subscriptions: subscriptions };
@@ -92,15 +99,17 @@ impl Habits {
             let path = database_path()?;
             let db = Store::open(&path).with_context(|| format!("Open {}", path.display()))?;
             let habits = db.index()?;
-            anyhow::Ok((db, habits))
+            let spaces = db.space_index()?;
+            anyhow::Ok((db, habits, spaces))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = load.await;
             let _ = this.update(cx, |view, cx| {
                 match result {
-                    Ok((db, habits)) => {
+                    Ok((db, habits, spaces)) => {
                         view.db = Some(Arc::new(Mutex::new(db)));
                         view.habits = habits;
+                        view.spaces = Arc::new(spaces);
                     }
                     Err(err) => view.error = Some(format!("{err:#}")),
                 }

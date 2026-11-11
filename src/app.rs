@@ -184,6 +184,7 @@ pub enum View {
     Doc,
     Home,
     Folder,
+    Ritual(crate::ritual::Page),
     Trash,
     Settings,
 }
@@ -218,6 +219,7 @@ pub struct Rename {
 
 pub struct Workspace {
     pub(crate) habits: Option<Entity<crate::ritual::Habits>>,
+    pub(crate) navigation: Option<crate::ritual::Navigation>,
     habit_picker: Option<Entity<crate::ritual::Picker>>,
     pub(crate) composer: Option<Entity<crate::ritual::Composer>>,
     before_picker: Option<FocusHandle>,
@@ -409,9 +411,11 @@ impl Workspace {
             }
         })
         .detach();
-        let sidebar_width = store.settings().sidebar_width.unwrap_or(theme::SIDEBAR_WIDTH);
+        let ritual_workspace = !quick && cx.has_global::<crate::ritual::Profile>();
+        let sidebar_width = store.settings().sidebar_width.unwrap_or(if ritual_workspace { crate::ritual::RAIL_WIDTH + 215. } else { theme::SIDEBAR_WIDTH });
         let mut ws = Workspace {
             habits: None,
+            navigation: None,
             habit_picker: None,
             composer: None,
             before_picker: None,
@@ -478,7 +482,7 @@ impl Workspace {
         };
         ws.sort();
         ws.load_home();
-        if !quick && cx.has_global::<crate::ritual::Profile>() {
+        if ritual_workspace {
             ws.home.tab = crate::home::HomeTab::Habits;
             let habits = cx.new(|cx| crate::ritual::Habits::new(ws.store.settings().ritual_habits_grid, window, cx));
             let composer = cx.new(|cx| crate::ritual::Composer::new(habits.clone(), window, cx));
@@ -486,12 +490,14 @@ impl Workspace {
                 cx.notify();
                 ws.home.sort_menu = false;
             }));
+            ws._subs.push(cx.observe(&habits, |_, _, cx| cx.notify()));
+            ws.navigation = Some(crate::ritual::Navigation::new(window, cx));
             ws.composer = Some(composer);
             ws.habits = Some(habits);
         }
         // An empty library opens on 主页's empty state; only a quick note
         // window starts a document of its own.
-        match document.or_else(|| (!quick).then(|| ws.entries.first().map(|e| e.id.clone())).flatten()) {
+        match document.or_else(|| (!quick && ws.navigation.is_none()).then(|| ws.entries.first().map(|e| e.id.clone())).flatten()) {
             Some(id) => ws.open(&id, window, cx),
             None if quick => ws.new_doc(window, cx),
             None => ws.view = View::Home,
@@ -865,6 +871,7 @@ impl Workspace {
         self.rename = Some(Rename { id: id.to_string(), field, _subs: subs });
         // From 主页 the row may be hidden: show it in the sidebar.
         self.sidebar_open = true;
+        if let Some(nav) = &mut self.navigation { nav.documents_open = true; }
         self.reveal_in_tree(id);
         self.row_menu = None;
         cx.notify();
@@ -1157,7 +1164,7 @@ impl Workspace {
     /// traffic lights and 展开侧栏) on the left, + on the right. Below a
     /// usable width it is None and the caller shows a search icon instead.
     pub(crate) fn header_search(&self, window: &Window, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
-        let main = f32::from(window.viewport_size().width) - if self.sidebar_open { self.sidebar_w(window) } else { 0. };
+        let main = f32::from(window.viewport_size().width) - self.sidebar_inset(window);
         let title = crate::settings::label(crate::settings::text("主页"));
         let title_w = f32::from(window.text_system().shape_line(title.clone().into(), px(17.), &[window.text_style().highlight(HighlightStyle { font_weight: Some(FontWeight::SEMIBOLD), ..Default::default() }).to_run(title.len())], None).width);
         // page_header's left inset (26 with the sidebar, else the traffic
@@ -1368,8 +1375,8 @@ impl Render for Workspace {
         // down), so leaving the document hands it back to the window's keys.
         if self.view != View::Doc && self.editor.as_ref().is_some_and(|e| e.read(cx).focus.is_focused(window)) { window.focus(&self.focus); }
         crate::editor::image::frame_drawn(window);
-        self.native_sidebar.sync(if self.sidebar_open { self.sidebar_w(window) } else { 0. }, window);
-        let sidebar = if self.sidebar_open { Some(if matches!(self.view, View::Settings | View::Trash) { self.render_settings_sidebar(window, cx) } else { self.render_sidebar(window, cx) }) } else { None };
+        self.native_sidebar.sync(self.sidebar_inset(window), window);
+        let sidebar = if self.navigation.is_some() { Some(self.ritual_sidebar(window, cx)) } else if self.sidebar_open { Some(if matches!(self.view, View::Settings | View::Trash) { self.render_settings_sidebar(window, cx) } else { self.render_sidebar(window, cx) }) } else { None };
         let row_menu = self.render_row_menu(window, cx);
         let resize = self.sidebar_open.then(|| self.render_resize_handle(window, cx));
         let resize_overlay = self.render_resize_overlay(cx);
@@ -1412,6 +1419,7 @@ impl Render for Workspace {
                 )
                 .into_any_element(),
             View::Home => self.render_home(window, cx),
+            View::Ritual(page) => self.ritual_page(page, window, cx),
             View::Folder => self.render_folder(window, cx),
             View::Trash => self.render_trash(cx),
             View::Settings => self.render_settings(cx),
@@ -1562,7 +1570,7 @@ impl Render for Workspace {
             .children(create_menu)
             .children(import_menu)
             .children(toast);
-        let inset = if self.sidebar_open { self.sidebar_w(window) } else { 0. };
+        let inset = self.sidebar_inset(window);
         let composer = self.composer.as_ref().filter(|c| c.read(cx).expanded).cloned();
         div().relative().size_full().child(workspace).when_some(self.workspace_theme_picker.clone(), |d, picker| {
             d.child(div().id("workspace-theme-scrim").absolute().inset_0().occlude()

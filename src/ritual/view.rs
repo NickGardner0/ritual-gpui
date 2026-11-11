@@ -117,7 +117,7 @@ impl Render for Habits {
 }
 
 /// Dashboard precision: at most two decimals and grouped thousands.
-fn display_amount(value: f64) -> String {
+pub(super) fn display_amount(value: f64) -> String {
     let raw = format!("{value:.2}");
     let (whole, fraction) = raw.split_once('.').unwrap_or((&raw, ""));
     let mut out = String::new();
