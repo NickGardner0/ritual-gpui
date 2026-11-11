@@ -768,14 +768,15 @@ impl Editor {
                 f(e, id, window, cx);
             })
         };
-        let sep = || div().w(px(1.)).h(px(18.)).bg(Theme::line_divider());
-        let mut bar = div().h(px(40.)).px(px(8.)).flex().items_center().gap(px(8.));
+        let sep = || div().w(px(1.)).h(px(18.)).bg(crate::theme::Theme::line_divider());
+        let target = crate::ui::design::metrics().toolbar_target;
+        let mut bar = div().h(px(target + 12.)).px(px(8.)).flex().items_center().gap(px(8.));
         let mut w = 16. + 2.;
         let mut n = 0;
         if preview.is_some_and(|k| k != Kind::Audio) {
             let p = path.clone();
             bar = bar.child(
-                shell_btn("ftb-full").tip_above(crate::settings::text("全屏"), None).child(icon("maximize", 18., Theme::icon())).on_mouse_down(
+                crate::ui::icon_button_frame("ftb-full").tip_above(crate::settings::text("全屏"), None).child(icon("maximize", 18., crate::theme::Theme::icon())).on_mouse_down(
                     MouseButton::Left,
                     cx.listener(move |e, _, window, cx| {
                         cx.stop_propagation();
@@ -784,11 +785,11 @@ impl Editor {
                     }),
                 ),
             );
-            w += 24.;
+            w += target;
             n += 1;
         }
         bar = bar
-            .child(shell_btn("ftb-download").tip_above(crate::settings::text("下载"), None).child(icon("download", 18., Theme::icon())).on_mouse_down(
+            .child(crate::ui::icon_button_frame("ftb-download").tip_above(crate::settings::text("下载"), None).child(icon("download", 18., crate::theme::Theme::icon())).on_mouse_down(
                 MouseButton::Left,
                 act(|e, id, _, cx| {
                     if let Some(BlockKind::File(f)) = e.core.kind_of(id).cloned() {
@@ -797,14 +798,14 @@ impl Editor {
                 }),
             ))
             .child(sep())
-            .child(shell_btn("ftb-text").tip_above(crate::settings::text("文本视图"), None).child(icon("view-text", 18., Theme::icon())).on_mouse_down(
+            .child(crate::ui::icon_button_frame("ftb-text").tip_above(crate::settings::text("文本视图"), None).child(icon("view-text", 18., crate::theme::Theme::icon())).on_mouse_down(
                 MouseButton::Left,
                 act(|e, id, window, cx| {
                     e.core.file_to_inline(id);
                     e.changed(window, cx);
                 }),
             ));
-        w += 24. + 1. + 24.;
+        w += 2. * target + 1.;
         n += 3;
         let views: &[(&'static str, &'static str, &'static str, FileView)] = if preview.is_some() {
             &[("ftb-card", "view-card", "卡片视图", FileView::Card), ("ftb-preview", "view-preview", "预览视图", FileView::Preview)]
@@ -814,10 +815,10 @@ impl Editor {
         for &(key, ic, tip, v) in views {
             let on = view == v || preview.is_none();
             bar = bar.child(
-                shell_btn(key)
-                    .when(on, |d| d.bg(Theme::fill_turninto_active()))
+                crate::ui::icon_button_frame(key)
+                    .when(on, |d| d.bg(crate::theme::Theme::fill_turninto_active()))
                     .tip_above(tip, None)
-                    .child(icon(ic, 18., if on { Theme::primary() } else { Theme::icon() }))
+                    .child(icon(ic, 18., if on { crate::theme::Theme::primary() } else { crate::theme::Theme::icon() }))
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |e, _, window, cx| {
@@ -828,15 +829,15 @@ impl Editor {
                         }),
                     ),
             );
-            w += 24.;
+            w += target;
             n += 1;
         }
         w += (n - 1) as f32 * 8.;
         let x = (f32::from(rect.center().x) - w / 2.).clamp(f32::from(viewport.left()) + 8., (f32::from(viewport.right()) - w - 8.).max(f32::from(viewport.left()) + 8.));
-        let h = 42.;
+        let h = target + 14.;
         let above = f32::from(rect.top()) - 8. - h;
         let y = if above >= f32::from(viewport.top()) { above } else { f32::from(rect.bottom()) + 8. };
-        let el = popover()
+        let el = crate::ui::popover()
             .id("file-toolbar")
             .occlude()
             .on_mouse_down(MouseButton::Left, |_, window, cx| {

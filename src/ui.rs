@@ -212,11 +212,15 @@ pub const MENU_INSET: f32 = 5.;
 
 /// A full-width interactive option. The containing list supplies its outer inset.
 pub(crate) fn option_row(id: impl Into<ElementId>) -> Stateful<Div> {
+    option_row_enabled(id, true)
+}
+
+pub(crate) fn option_row_enabled(id: impl Into<ElementId>, enabled: bool) -> Stateful<Div> {
     let style = metrics();
     div().id(id).flex_none().h(px(style.menu_height)).px(px(style.row_padding))
         .flex().items_center().gap(px(style.icon_gap)).rounded(px(style.row_radius))
-        .cursor_pointer().text_size(px(13.)).line_height(px(20.)).text_color(Theme::text())
-        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed()))
+        .text_size(px(13.)).line_height(px(20.)).text_color(if enabled { Theme::text() } else { Theme::text_disabled() })
+        .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed())))
 }
 
 pub fn menu_row(id: impl Into<ElementId>, group: SharedString) -> Stateful<Div> {
@@ -888,9 +892,13 @@ pub fn continuous_surface(radius: f32, color: Hsla) -> Div {
 
 /// A single action with a square hit area and a rounded hover background.
 pub(crate) fn icon_button(id: &'static str, glyph: impl IntoElement) -> Stateful<Div> {
+    icon_button_frame(id).child(glyph)
+}
+
+pub(crate) fn icon_button_frame(id: impl Into<ElementId>) -> Stateful<Div> {
     div().id(id).size(px(metrics().toolbar_target)).rounded(px(metrics().control_radius))
         .flex_none().flex().items_center().justify_center().cursor_pointer()
-        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed())).child(glyph)
+        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed()))
 }
 
 pub fn header_icon(id: &'static str, name: &'static str) -> Stateful<Div> {

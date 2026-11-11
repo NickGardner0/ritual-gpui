@@ -11,7 +11,7 @@ use crate::store::image_path;
 use crate::model::*;
 use crate::store::Store;
 use crate::editor_theme::{self as theme, Theme, craft};
-use crate::editor_ui::{ROW_RADIUS, TipExt, ToastKind, icon, popover};
+use crate::editor_ui::{ROW_RADIUS, TipExt, ToastKind, icon};
 use gpui::{prelude::FluentBuilder, *};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -1122,20 +1122,8 @@ impl Editor {
         let has_caption = caption.as_ref().is_some_and(|c| !c.is_empty());
         let align = b.align;
 
-        // Toolbar buttons: 24 square, radius 6, a grey hover; a toggle that
-        // is on gets the accent glyph on the accent tint.
-        let btn = |id: &'static str| {
-            div()
-                .id(id)
-                .size(px(24.))
-                .flex()
-                .items_center()
-                .justify_center()
-                .rounded(px(ROW_RADIUS))
-                .cursor_pointer()
-                .hover(|s| s.bg(Theme::fill_hover_strong()))
-        };
-        let sep = || div().w(px(1.)).h(px(18.)).bg(Theme::line_divider());
+        let btn = crate::ui::icon_button_frame;
+        let sep = || div().w(px(1.)).h(px(18.)).bg(crate::theme::Theme::line_divider());
         let act = |f: fn(&mut Editor, BlockId, &mut Window, &mut Context<Editor>)| {
             cx.listener(move |e: &mut Editor, _: &MouseDownEvent, window, cx| {
                 cx.stop_propagation();
@@ -1143,14 +1131,15 @@ impl Editor {
                 f(e, id, window, cx);
             })
         };
-        let mut bar = div().h(px(40.)).px(px(8.)).flex().items_center().gap(px(8.));
+        let target = crate::ui::design::metrics().toolbar_target;
+        let mut bar = div().h(px(target + 12.)).px(px(8.)).flex().items_center().gap(px(8.));
         let mut w = 16. + 2.;
         let mut n = 0;
         if ok {
             let crop_btn = if small {
                 div()
                     .id("itb-crop")
-                    .size(px(24.))
+                    .size(px(target))
                     .flex()
                     .items_center()
                     .justify_center()
@@ -1158,9 +1147,9 @@ impl Editor {
                     .child(icon("crop", 18., Theme::text_disabled()))
             } else {
                 btn("itb-crop")
-                    .when(cropping, |d| d.bg(Theme::fill_turninto_active()))
+                    .when(cropping, |d| d.bg(crate::theme::Theme::fill_turninto_active()))
                     .tip_above(if cropping { crate::settings::text("保存裁剪") } else { crate::settings::text("裁剪") }, None)
-                    .child(icon("crop", 18., if cropping { Theme::primary() } else { Theme::icon() }))
+                    .child(icon("crop", 18., if cropping { crate::theme::Theme::primary() } else { crate::theme::Theme::icon() }))
                     .on_mouse_down(
                         MouseButton::Left,
                         act(|e, id, window, cx| {
@@ -1173,16 +1162,16 @@ impl Editor {
                     )
             };
             bar = bar.child(crop_btn);
-            w += 24.;
+            w += target;
             n += 1;
             if reset {
                 bar = bar.child(
                     btn("itb-reset")
                         .tip_above(crate::settings::text("重置图片"), None)
-                        .child(icon("image-reset", 18., Theme::icon()))
+                        .child(icon("image-reset", 18., crate::theme::Theme::icon()))
                         .on_mouse_down(MouseButton::Left, act(|e, id, _, cx| e.reset_crop(id, cx))),
                 );
-                w += 24.;
+                w += target;
                 n += 1;
             }
             bar = bar.child(sep());
@@ -1193,11 +1182,11 @@ impl Editor {
             .child(
                 btn("itb-caption")
                     .tip_above(if has_caption { crate::settings::text("编辑描述") } else { crate::settings::text("添加描述") }, None)
-                    .child(icon("caption", 18., Theme::icon()))
+                    .child(icon("caption", 18., crate::theme::Theme::icon()))
                     .on_mouse_down(MouseButton::Left, act(|e, id, window, cx| e.edit_caption(id, window, cx))),
             )
             .child(sep());
-        w += 25.;
+        w += target + 1.;
         n += 2;
         for (key, ic, tip, a) in [
             ("itb-left", "align-left", crate::settings::text("左对齐"), Align::Left),
@@ -1207,9 +1196,9 @@ impl Editor {
             let on = align == a;
             bar = bar.child(
                 btn(key)
-                    .when(on, |d| d.bg(Theme::fill_turninto_active()))
+                    .when(on, |d| d.bg(crate::theme::Theme::fill_turninto_active()))
                     .tip_above(tip, None)
-                    .child(icon(ic, 18., if on { Theme::primary() } else { Theme::icon() }))
+                    .child(icon(ic, 18., if on { crate::theme::Theme::primary() } else { crate::theme::Theme::icon() }))
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |e, _, window, cx| {
@@ -1220,15 +1209,15 @@ impl Editor {
                         }),
                     ),
             );
-            w += 24.;
+            w += target;
             n += 1;
         }
         w += (n - 1) as f32 * 8.;
         let x = clampf(f32::from(rect.center().x) - w / 2., f32::from(viewport.left()) + 8., f32::from(viewport.right()) - w - 8.);
-        let h = 42.;
+        let h = target + 14.;
         let above = f32::from(rect.top()) - 8. - h;
         let y = if above >= f32::from(viewport.top()) { above } else { f32::from(rect.bottom()) + 8. };
-        let el = popover()
+        let el = crate::ui::popover()
             .id("image-toolbar")
             .occlude()
             .on_mouse_down(MouseButton::Left, |_, window, cx| {

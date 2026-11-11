@@ -450,7 +450,7 @@ impl Editor {
             menu_row(id, g.clone())
                 .pr(px(16.))
                 .whitespace_nowrap()
-                .child(menu_glyph(ic, 16., g))
+                .child(menu_glyph(ic))
                 .child(label)
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         };

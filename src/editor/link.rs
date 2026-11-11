@@ -6,7 +6,7 @@ use super::overlays::at;
 use super::view::{Editor, Menu};
 use crate::model::*;
 use crate::editor_theme::{self as theme, Theme, craft};
-use crate::editor_ui::{ROW_RADIUS, TipExt, ToastKind, icon, menu, menu_glyph, menu_row, panel, popover};
+use crate::editor_ui::{TipExt, ToastKind, icon, menu, menu_glyph, menu_row, panel};
 use gpui::{prelude::FluentBuilder, *};
 use regex::Regex;
 use std::ops::Range;
@@ -110,10 +110,6 @@ type LinkRef = (BlockId, Range<usize>);
 
 /// Show / hide delay of the hover card.
 const CARD_DELAY: Duration = Duration::from_millis(1000);
-const CARD_W: f32 = 1. + 8. + 184. + 8. + 32. + 32. + 9. + 32. + 8. + 1.;
-const CARD_H: f32 = 42.;
-/// The 更多 button's left edge in the card.
-const CARD_MORE_X: f32 = CARD_W - 1. - 8. - 24.;
 /// The 更多 menus: native-style, 200 wide.
 const SUBMENU_W: f32 = 200.;
 
@@ -447,34 +443,23 @@ impl Editor {
         let first = *rects.first()?;
         let union = rects.iter().skip(1).fold(first, |a, b| a.union(b));
         let view_top = self.list.viewport_bounds().top();
-        let x = union.center().x - px(CARD_W / 2.);
-        let above = first.top() - px(7. + CARD_H) >= view_top;
+        let target = crate::ui::design::metrics().toolbar_target;
+        let card_h = target + 18.;
+        let card_w = 18. + 184. + 3. * (8. + target) + 9.;
+        let x = (union.center().x - px(card_w / 2.)).min(window.viewport_size().width - px(card_w + 8.)).max(px(8.));
+        let above = first.top() - px(7. + card_h) >= view_top;
         let (pos, corner) = if above { (point(x, first.top() - px(7.)), Corner::BottomLeft) } else { (point(x, union.bottom() + px(7.)), Corner::TopLeft) };
-        let btn = |id: &'static str| {
-            div()
-                .id(id)
-                .ml(px(8.))
-                .size(px(24.))
-                .flex()
-                .flex_none()
-                .items_center()
-                .justify_center()
-                .rounded(px(ROW_RADIUS))
-                .cursor_pointer()
-                .hover(|s| s.bg(Theme::fill_hover_strong()))
-                .active(|s| s.bg(Theme::fill_pressed()))
-        };
+        let btn = |id: &'static str| crate::ui::icon_button_frame(id).ml(px(8.));
         let edit = lr.clone();
         let remove = lr.clone();
         let more = self.link_ui.more;
         let submenu = more.then(|| {
             let u = url.clone();
-            menu()
+            let y = if above { pos.y } else { pos.y + px(card_h) };
+            anchored().position(point(x + px(card_w - 8.), y)).anchor(Corner::TopRight)
+                .snap_to_window_with_margin(px(8.)).child(menu()
                 .id("link-card-more")
                 .occlude()
-                .absolute()
-                .left(px(CARD_MORE_X - 9. - 1.))
-                .top(px(1. + 8. + 24. + 2. - 1.))
                 .w(px(SUBMENU_W))
                 .py(px(crate::editor_ui::MENU_PAD_Y))
                 .on_hover(cx.listener(|e, h: &bool, _, cx| e.card_over(2, *h, cx)))
@@ -483,14 +468,14 @@ impl Editor {
                     cx.write_to_clipboard(ClipboardItem::new_string(u.clone()));
                     e.link_ui.more = false;
                     e.toast_kind(ToastKind::Success, crate::settings::text("链接已复制到剪贴板"), cx);
-                })))
+                }))))
         });
-        let el = popover()
+        let el = menu()
             .id("link-card")
             .occlude()
             .relative()
-            .h(px(CARD_H))
-            .w(px(CARD_W))
+            .h(px(card_h))
+            .w(px(card_w))
             .p(px(8.))
             .flex()
             .items_center()
@@ -504,12 +489,12 @@ impl Editor {
                     .px(px(6.))
                     .flex()
                     .items_center()
-                    .child(div().ml(px(4.)).pr(px(4.)).flex_1().min_w_0().overflow_hidden().text_ellipsis().whitespace_nowrap().text_size(px(13.)).text_color(Theme::text_caption()).child(crate::editor_ui::ui_text(url))),
+                    .child(div().ml(px(4.)).pr(px(4.)).flex_1().min_w_0().overflow_hidden().text_ellipsis().whitespace_nowrap().text_size(px(13.)).text_color(crate::theme::Theme::text_caption()).child(crate::editor_ui::ui_text(url))),
             )
             .child(
                 btn("lc-edit")
                     .tip_above(crate::settings::text("编辑链接"), None)
-                    .child(icon("pen-line", 18., Theme::icon()))
+                    .child(icon("pen-line", 18., crate::theme::Theme::icon()))
                     .on_click(cx.listener(move |e, _, window, cx| {
                         let (b, r) = edit.clone();
                         e.open_link_panel(b, r, false, window, cx);
@@ -518,14 +503,14 @@ impl Editor {
             .child(
                 btn("lc-remove")
                     .tip_above(crate::settings::text("移除链接"), None)
-                    .child(icon("unlink", 18., Theme::icon()))
+                    .child(icon("unlink", 18., crate::theme::Theme::icon()))
                     .on_click(cx.listener(move |e, _, window, cx| e.remove_link(remove.clone(), window, cx))),
             )
-            .child(div().ml(px(8.)).w(px(1.)).h(px(18.)).flex_none().bg(Theme::line_divider()))
+            .child(div().ml(px(8.)).w(px(1.)).h(px(18.)).flex_none().bg(crate::theme::Theme::line_border()))
             .child(
                 btn("lc-more")
-                    .when(more, |d| d.bg(Theme::fill_hover_strong()))
-                    .child(icon("layout-grid", 18., Theme::icon()))
+                    .when(more, |d| d.bg(crate::theme::Theme::fill_hover_strong()))
+                    .child(icon("layout-grid", 18., crate::theme::Theme::icon()))
                     .on_hover(cx.listener(|e, h: &bool, _, cx| e.card_over(1, *h, cx)))
                     .on_click(cx.listener(|e, _, _, cx| {
                         e.link_ui.more = true;
@@ -534,7 +519,6 @@ impl Editor {
             )
             .children(submenu)
             .with_animation(("link-card-fade", self.link_ui.shown), Animation::new(Duration::from_millis(150)), |el, k| el.opacity(k));
-        let _ = window;
         Some(at(self.rel(pos), corner, el))
     }
 
@@ -607,7 +591,7 @@ fn encode_query(s: &str) -> String {
 /// The app's menu row (`ui::menu_row`): 16pt glyph, 13pt label, a quiet hover.
 fn menu_item(id: &'static str, ic: &'static str, label: &'static str) -> Stateful<Div> {
     let g = SharedString::from(id);
-    menu_row(id, g.clone()).child(menu_glyph(ic, 16., g)).child(div().whitespace_nowrap().child(label))
+    menu_row(id, g).child(menu_glyph(ic)).child(div().whitespace_nowrap().child(label))
 }
 
 use crate::input::TextField;

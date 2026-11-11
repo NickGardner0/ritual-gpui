@@ -74,6 +74,7 @@ pub enum Menu {
     Add { block: BlockId, selected: usize },
     /// Handle click.
     Block { block: BlockId, sub: Option<BlockSub> },
+    TextContext(Point<Pixels>),
     /// Toolbar dropdowns.
     TurnInto,
     OrderedNumber { block: BlockId, pos: Point<Pixels>, edit: bool, depth: usize },
@@ -500,6 +501,7 @@ impl Editor {
     }
 
     pub fn changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(self.menu, Some(Menu::TextContext(_))) { self.menu = None; }
         self.core.reveal_caret();
         if self.core.dirty {
             self.core.dirty = false;
@@ -1778,6 +1780,7 @@ impl Editor {
             return;
         }
         self.copy_selection(cx);
+        if matches!(self.menu, Some(Menu::TextContext(_))) { self.close_menu_focus(window, cx); }
     }
 
     fn on_cut(&mut self, _: &k::Cut, window: &mut Window, cx: &mut Context<Self>) {
@@ -2204,7 +2207,33 @@ impl Editor {
         Some(Pos::new(pos.block, pos.offset.min(self.core.len_of(pos.block))))
     }
 
+    pub(super) fn on_context_click(&mut self, ev: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(pos) = self.pos_at(ev.position) else { return };
+        let inside = if self.core.in_block_mode() {
+            self.core.selected_blocks().iter().any(|id| self.block_bounds.borrow().get(id).is_some_and(|b| b.contains(&ev.position)))
+        } else if let Some((table, range)) = self.core.cell_range() {
+            self.core.cell_of(pos.block).is_some_and(|(id, r, c)| id == table && range.contains(r, c))
+        } else {
+            !self.core.sel.is_collapsed() && self.core.range_in(pos.block, &self.core.units())
+                .is_some_and(|r| (r.start..=r.end).contains(&pos.offset))
+        };
+        if !inside {
+            self.core.clear_block_sel();
+            self.set_caret(pos, false);
+            if !self.read_only && self.core.text_of(pos.block).is_none() { self.core.select_block(pos.block); }
+        }
+        window.focus(&self.focus);
+        self.hide_link_card(cx);
+        self.mention = None;
+        self.slash = None;
+        self.menu = Some(Menu::TextContext(ev.position));
+        window.prevent_default();
+        cx.stop_propagation();
+        cx.notify();
+    }
+
     pub fn on_mouse_down(&mut self, ev: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if cfg!(target_os = "macos") && ev.modifiers.control { return self.on_context_click(ev, window, cx); }
         window.focus(&self.focus);
         self.reminder_blur(window, cx);
         self.menu = None;
@@ -2407,11 +2436,13 @@ impl Editor {
             BlockAct::Cut => {
                 self.core.select_block(block);
                 self.copy_selection(cx);
+        if matches!(self.menu, Some(Menu::TextContext(_))) { self.close_menu_focus(window, cx); }
                 self.core.delete_selected_blocks();
             }
             BlockAct::Copy => {
                 self.core.select_block(block);
                 self.copy_selection(cx);
+        if matches!(self.menu, Some(Menu::TextContext(_))) { self.close_menu_focus(window, cx); }
             }
             BlockAct::Delete => {
                 self.core.select_block(block);

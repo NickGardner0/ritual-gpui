@@ -38,9 +38,8 @@ impl Editor {
             panel = panel.w(px(184.)).py(px(crate::editor_ui::MENU_PAD_Y));
             for (i, label) in [crate::settings::text("继续之前的编号"), crate::settings::text("开始新列表"), crate::settings::text("修改编号值")].into_iter().enumerate() {
                 let enabled = match i { 0 => previous.is_some_and(|n| n != number), 1 => number != 1, _ => true };
-                panel = panel.child(div().id(("ordered-number-action", i)).h(px(crate::editor_ui::MENU_ROW_H)).mx(px(crate::editor_ui::MENU_INSET)).px(px(8.)).flex().items_center().rounded(px(crate::ui::ROW_RADIUS)).text_size(px(13.))
-                    .text_color(if enabled { Theme::text() } else { Theme::text_disabled() }).child(label)
-                    .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(Theme::fill_hover())).on_mouse_down(MouseButton::Left, cx.listener(move |e, _, w, cx| {
+                panel = panel.child(crate::ui::option_row_enabled(("ordered-number-action", i), enabled).mx(px(crate::editor_ui::MENU_INSET)).child(label)
+                    .when(enabled, |d| d.on_mouse_down(MouseButton::Left, cx.listener(move |e, _, w, cx| {
                         cx.stop_propagation();
                         if i == 2 {
                             e.number_field.update(cx, |f, cx| { f.set_text(super::core::ordered_marker(number, depth).trim_end_matches('.'), cx); f.select_all_text(cx); });

@@ -108,7 +108,7 @@ use crate::model::{ButtonAction, InlineButton};
 use crate::input::{TextField, TextFieldEvent};
 use crate::model::BlockId;
 use crate::editor_theme::{self as theme, Theme};
-use crate::editor_ui::{MENU_INSET, MENU_PAD_Y, MENU_ROW_H, ROW_RADIUS, TipExt, ToastKind, icon, menu, panel, popover};
+use crate::editor_ui::{MENU_INSET, MENU_PAD_Y, ROW_RADIUS, TipExt, ToastKind, icon, menu, panel, popover};
 use gpui::prelude::FluentBuilder;
 use std::{cell::Cell, rc::Rc, time::Duration};
 
@@ -118,9 +118,9 @@ const SHOW_DELAY: Duration = Duration::from_millis(200);
 const HIDE_DELAY: Duration = Duration::from_millis(300);
 const PANEL_W: f32 = 270.;
 const MAX_TEXT: usize = 200;
-/// The type submenu of the slash / "+" menu, built like the insert panel it
-/// hangs off: 8 + its 32pt title + two 32pt rows + 8.
-pub const TYPE_MENU_H: f32 = MENU_PAD_Y + 32. + 32. * 2. + MENU_PAD_Y;
+pub(super) fn type_menu_height() -> f32 {
+    2. + 2. * MENU_PAD_Y + (1 + ACTIONS.len()) as f32 * crate::ui::design::metrics().menu_height
+}
 /// Rows of the 执行操作 list.
 const ACTION_ROW_H: f32 = 26.;
 /// The actions a new button can take (关注文档更新 needs the cloud).
@@ -706,29 +706,17 @@ impl Editor {
 
     /// 选择按钮类型: the slash / "+" menu's submenu of 按钮.
     pub(super) fn button_type_menu(&self, cx: &mut Context<Self>) -> Stateful<Div> {
-        // An editor list popover, like the insert panel: the menu shell,
-        // a small secondary title, 32pt rows with a grey hover, 16pt glyphs.
         let mut el = menu()
             .id("btn-type-menu")
             .occlude()
             .w(px(200.))
             .py(px(MENU_PAD_Y))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-            .child(div().h(px(32.)).px(px(MENU_INSET + 8.)).flex().items_center().text_size(px(12.)).text_color(Theme::text_caption()).child(crate::settings::text("选择按钮类型")));
+            .child(div().h(px(crate::ui::design::metrics().menu_height)).px(px(MENU_INSET + crate::ui::design::metrics().row_padding)).flex().items_center().text_size(px(12.)).text_color(Theme::text_caption()).child(crate::settings::text("选择按钮类型")));
         for (i, act) in ACTIONS.into_iter().enumerate() {
             el = el.child(
-                div()
-                    .id(("btn-type", i))
-                    .h(px(MENU_ROW_H))
-                    .mx(px(MENU_INSET))
-                    .px(px(8.))
-                    .flex()
-                    .items_center()
-                    .gap(px(8.))
-                    .rounded(px(crate::ui::ROW_RADIUS))
-                    .cursor_pointer()
-                    .hover(|s| s.bg(Theme::fill_hover()))
-                    .child(icon(action_icon(act), 16., Theme::icon()))
+                crate::ui::option_row(("btn-type", i)).mx(px(MENU_INSET))
+                    .child(icon(action_icon(act), crate::ui::design::metrics().menu_icon, crate::theme::Theme::icon()))
                     .child(div().text_size(px(13.)).line_height(px(20.)).child(crate::settings::text(act.label())))
                     .on_mouse_down(
                         MouseButton::Left,
