@@ -2,11 +2,11 @@
 mod view;
 pub(crate) mod appearance;
 mod navigation;
-mod rail;
+mod sidebar;
 mod pages;
 pub use navigation::{Page, Destination};
 pub(crate) use navigation::Navigation;
-pub(crate) use rail::RAIL_WIDTH;
+pub(crate) use sidebar::SIDEBAR_WIDTH;
 mod picker;
 mod catalog;
 mod composer;

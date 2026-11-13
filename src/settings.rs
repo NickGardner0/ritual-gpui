@@ -629,7 +629,7 @@ impl Workspace {
                 .child(title)
                 .on_click(cx.listener(move |w, _, _, cx| match page { Some(p) => w.open_settings(p, cx), None => w.show_view(View::Trash, cx) }))
         };
-        div().w(px(self.panel_width(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::ui_font())
+        div().w(px(self.sidebar_w(window))).h_full().flex_none().flex().flex_col().text_color(Theme::text()).font_family(theme::ui_font())
             .when(self.navigation.is_none(), |d| d.child(div().h(px(crate::app::HEADER_H)).flex_none().flex().items_center().pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(12.)).title_bar().child(self.header_navigation(cx))
                 .child(div().flex_1()).children(update_pill(cx))))
             .child(div().pt(px(8.)).px(px(sb::SB_X)).flex().flex_col()

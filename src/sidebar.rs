@@ -89,12 +89,7 @@ impl Workspace {
     }
 
     pub(crate) fn sidebar_inset(&self, window: &Window) -> f32 {
-        if self.sidebar_open { self.sidebar_w(window) }
-        else if self.navigation.is_some() { crate::ritual::RAIL_WIDTH } else { 0. }
-    }
-
-    pub(crate) fn panel_width(&self, window: &Window) -> f32 {
-        self.sidebar_w(window) - if self.navigation.is_some() { crate::ritual::RAIL_WIDTH } else { 0. }
+        if self.sidebar_open { self.sidebar_w(window) } else { 0. }
     }
 
     pub(crate) fn render_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -239,7 +234,7 @@ impl Workspace {
             });
 
         div()
-            .w(px(self.panel_width(window)))
+            .w(px(self.sidebar_w(window)))
             .flex_none()
             .h_full()
             .flex()

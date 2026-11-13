@@ -10,7 +10,7 @@ pub enum Destination { Home, Metrics, Logs, Tasks, Calendar, Reports, Routines, 
 impl Destination {
     pub(super) fn label(self) -> &'static str {
         match self {
-            Self::Home => "Home", Self::Metrics => "Metrics", Self::Logs => "Logs", Self::Tasks => "Tasks",
+            Self::Home => "Index", Self::Metrics => "Metrics", Self::Logs => "Logs", Self::Tasks => "Tasks",
             Self::Calendar => "Calendar", Self::Reports => "Reports", Self::Routines => "Routines",
             Self::Experiments => "Experiments", Self::Integrations => "Integrations", Self::Settings => "Settings",
         }

@@ -412,7 +412,7 @@ impl Workspace {
         })
         .detach();
         let ritual_workspace = !quick && cx.has_global::<crate::ritual::Profile>();
-        let sidebar_width = store.settings().sidebar_width.unwrap_or(if ritual_workspace { crate::ritual::RAIL_WIDTH + 215. } else { theme::SIDEBAR_WIDTH });
+        let sidebar_width = store.settings().sidebar_width.unwrap_or(if ritual_workspace { crate::ritual::SIDEBAR_WIDTH } else { theme::SIDEBAR_WIDTH });
         let mut ws = Workspace {
             habits: None,
             navigation: None,
@@ -1376,7 +1376,10 @@ impl Render for Workspace {
         if self.view != View::Doc && self.editor.as_ref().is_some_and(|e| e.read(cx).focus.is_focused(window)) { window.focus(&self.focus); }
         crate::editor::image::frame_drawn(window);
         self.native_sidebar.sync(self.sidebar_inset(window), window);
-        let sidebar = if self.navigation.is_some() { Some(self.ritual_sidebar(window, cx)) } else if self.sidebar_open { Some(if matches!(self.view, View::Settings | View::Trash) { self.render_settings_sidebar(window, cx) } else { self.render_sidebar(window, cx) }) } else { None };
+        let sidebar = if !self.sidebar_open { None } else if self.navigation.is_some() {
+            Some(self.ritual_sidebar(window, cx))
+        } else if matches!(self.view, View::Settings | View::Trash) { Some(self.render_settings_sidebar(window, cx)) }
+        else { Some(self.render_sidebar(window, cx)) };
         let row_menu = self.render_row_menu(window, cx);
         let resize = self.sidebar_open.then(|| self.render_resize_handle(window, cx));
         let resize_overlay = self.render_resize_overlay(cx);

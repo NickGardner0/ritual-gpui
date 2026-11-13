@@ -426,7 +426,7 @@ impl Workspace {
         let dt = self.folder_drag.last_frame.replace(now).map_or(1. / 120., |last| now.duration_since(last).as_secs_f32().min(0.032));
         self.project_folder_drop();
         let rows = self.drag_rows();
-        let width = self.panel_width(window) - 2. * crate::sidebar::SB_X;
+        let width = self.sidebar_w(window) - 2. * crate::sidebar::SB_X;
         let active = self.folder_drag.active.as_ref().filter(|d| d.started);
         let slot = active.map(|d| (d.index, d.depth));
         let dragged = active.map(|d| d.id.clone());

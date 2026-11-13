@@ -796,3 +796,5 @@ The four composer icons in `assets/ritual/composer/` are from lucide-react (ISC,
 Ritual's optional One, Ayu, and Gruvbox palettes use the workspace colors from [Zed's bundled themes](https://github.com/zed-industries/zed/tree/3def8bad0b62dbda02d5b67b00df96fe8d3957bd/assets/themes). Their [MIT notices](assets/ritual/themes/LICENSES) accompany the palette data. The four file and folder glyphs for the Zed icon option come from [Zed's icons](https://github.com/zed-industries/zed/tree/3def8bad0b62dbda02d5b67b00df96fe8d3957bd/assets/icons) with the [upstream icon license](assets/ritual/file-icons/LICENSES).
 
 The six Ritual navigation glyphs in `assets/ritual/navigation/` (chart-no-axes-column, repeat-2, flask-conical, plug, message-circle, square-pen) are from lucide-react 0.553.0, under the [ISC license](assets/icons/LICENSE-lucide).
+
+The Ritual Index mark in `assets/ritual/navigation/index.svg` was drawn for this project and is distributed under the project’s MIT license.

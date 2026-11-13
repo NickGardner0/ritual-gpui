@@ -392,8 +392,6 @@ impl Theme {
     /// A light gray tint separates the sidebar from the white page while keeping wallpaper colors quiet.
     /// The document pane paints its own opaque white surface.
     pub fn window() -> Hsla { workspace_color!(panel, if crate::native_header::supported() { ca(craft::WINDOW, 0.) } else if crate::theme::glass() { ca(craft::WINDOW, 0.84) } else { ca(craft::WINDOW, 1.) }) }
-    /// Opaque rail and Spaces panel from Ritual’s light/dark sidebar preview.
-    pub(crate) fn navigation_panel() -> Hsla { workspace_color!(panel, rgb(if dark() { 0x232523 } else { 0xf8f9f6 }).into()) }
     /// Sidebar row label: text at 85%.
     pub fn sidebar_text() -> Hsla { workspace_color!(text, ca(craft::N900, 0.85)) }
     pub fn sidebar_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
