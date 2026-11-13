@@ -247,8 +247,7 @@ impl Workspace {
     }
 
     /// Width handle: a 15px hit strip straddling the sidebar edge (6px inside,
-    /// 9px over the note's margin). Borderless like the sidebar: only the
-    /// cursor changes, and a faint line shows while dragging.
+    /// 9px over the note's margin). Ritual keeps a hairline at the panel boundary.
     pub(crate) fn render_resize_handle(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let w = self.sidebar_w(window);
         let dragging = self.sidebar_drag;
@@ -261,6 +260,8 @@ impl Workspace {
             .w(px(15.))
             .group("sidebar-resize")
             .cursor(CursorStyle::ResizeLeftRight)
+            .when(self.navigation.is_some(), |d| d.child(div().absolute().top_0().bottom_0()
+                .left(px(6.)).w(px(1.)).bg(Theme::sidebar_divider())))
             .child(
                 div()
                     .absolute()

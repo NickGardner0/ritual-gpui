@@ -394,6 +394,10 @@ impl Theme {
     pub fn window() -> Hsla { workspace_color!(panel, if crate::native_header::supported() { ca(craft::WINDOW, 0.) } else if crate::theme::glass() { ca(craft::WINDOW, 0.84) } else { ca(craft::WINDOW, 1.) }) }
     /// Sidebar row label: text at 85%.
     pub fn sidebar_text() -> Hsla { workspace_color!(text, ca(craft::N900, 0.85)) }
+    /// Production Ritual's --sidebar-vibrancy-border in apps/dashboard/app/globals.css.
+    pub(crate) fn sidebar_divider() -> Hsla {
+        if dark() { rgbaf(255, 255, 255, 0.10) } else { rgbaf(15, 23, 42, 0.05) }
+    }
     pub fn sidebar_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
     /// Selected sidebar row (measured #DEDEDF).
     pub fn sidebar_selected() -> Hsla { workspace_color!(selected, ca(craft::N1000, 0.072)) }
