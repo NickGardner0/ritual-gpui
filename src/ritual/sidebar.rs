@@ -117,12 +117,17 @@ impl Workspace {
             let (id, label) = if forward { ("page-forward", "Go forward") } else { ("page-back", "Go back") };
             let enabled = self.history_target(forward, cx).is_some();
             let ink = Theme::index_secondary();
-            div().id(id).no_drag().size(px(28.)).flex_none().flex().items_center().justify_center().rounded(px(RITUAL.row_radius))
+            ui::button_surface(id, enabled, Theme::navigation_highlight()).no_drag().size(px(28.)).flex_none().flex().items_center().justify_center().rounded(px(RITUAL.row_radius))
                 .tip(label, None).child(ui::icon("arrow-left", 17., if enabled { ink } else { ink.opacity(0.45) })
                     .when(forward, |s| s.with_transformation(Transformation::rotate(radians(std::f32::consts::PI)))))
-                .when(enabled, |d| d.tab_index(0).cursor_pointer().hover(|s| s.bg(Theme::navigation_highlight()))
-                    .focus(|s| s.bg(Theme::navigation_highlight()))
-                    .on_click(cx.listener(move |ws, _, w, cx| ws.step_page_history(forward, w, cx))))
+                .when(enabled, |d| ui::button_focus(d, &self.navigation.as_ref().unwrap().history_buttons[usize::from(forward)], Theme::navigation_highlight())
+                    .on_click(cx.listener(move |ws, event: &ClickEvent, w, cx| {
+                        ws.step_page_history(forward, w, cx);
+                        if matches!(event, ClickEvent::Keyboard(_)) && ws.focus.is_focused(w) {
+                            let direction = if ws.history_target(forward, cx).is_some() { forward } else { !forward };
+                            if ws.history_target(direction, cx).is_some() { ws.navigation.as_ref().unwrap().history_buttons[usize::from(direction)].focus(w); }
+                        }
+                    })))
         };
         let head = div().h(px(HEADER_H)).w_full().flex_none().flex().items_center().title_bar()
             .pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(9.)).gap(px(2.))
@@ -140,6 +145,7 @@ impl Workspace {
                     .child(self.threads_section(&index, cx))).into_any_element()
             };
         div().w(px(self.sidebar_w(window))).bg(Theme::bg_body()).h_full().flex_none().flex().flex_col()
+            .on_key_down(|event: &KeyDownEvent, win, cx| { if ui::traverse_tab(&event.keystroke, win) { cx.stop_propagation(); } })
             .font_family(theme::ui_font()).text_size(px(14.)).text_color(Theme::sidebar_text()).child(head)
             .child(div().w_full().min_h_0().flex_1().overflow_hidden().child(body))
             .when(!settings && self.batch.is_none(), |d| d.child(div().flex_none().px(px(9.)).py(px(14.))

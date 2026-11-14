@@ -35,6 +35,7 @@ python3 tools/harness/compare.py tools/harness/examples/menus.txt <旧版二进�
 |---|---|
 | `wait <ms>` | 等待，期间自己绘制帧（锁屏时也能出图） |
 | `key <按键>` | 发送按键，如 `key cmd-b`、`key escape` |
+| `press <按键>` | 发送按下和释放事件，如 `press space`，用于验证 GPUI 按钮的键盘点击 |
 | `type <文字>` | 输入文字（行尾空格有效） |
 | `move x y` / `click x y` / `dclick x y` / `rclick x y` / `drag x1 y1 x2 y2` | 鼠标操作（窗口坐标） |
 | `wheel x y dy [dx]` | 一次滚轮事件；可选的 `dx` 是横向分量（模拟触控板），正数露出右边的内容 |

@@ -1,6 +1,6 @@
 use super::icon;
 use crate::{theme::{self, Theme}, ui::design::metrics};
-use gpui::{prelude::FluentBuilder, *};
+use gpui::*;
 
 /// Popover shell shared by the slash menu, block menu and toolbar dropdowns:
 /// the light panel (macOS 26 menu material, near-white), hairline,
@@ -33,10 +33,45 @@ pub(crate) fn option_row(id: impl Into<ElementId>) -> Stateful<Div> {
 
 pub(crate) fn option_row_enabled(id: impl Into<ElementId>, enabled: bool) -> Stateful<Div> {
     let style = metrics();
-    div().id(id).flex_none().h(px(style.menu_height)).px(px(style.row_padding))
+    super::button_surface(id, enabled, Theme::fill_hover()).flex_none().h(px(style.menu_height)).px(px(style.row_padding))
         .flex().items_center().gap(px(style.icon_gap)).rounded(px(style.row_radius))
         .text_size(px(13.)).line_height(px(20.)).text_color(if enabled { Theme::text() } else { Theme::text_disabled() })
-        .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed())))
+}
+
+pub(crate) fn menu_choice(id: impl Into<ElementId>, focus: &FocusHandle, hover: Hsla) -> Stateful<Div> {
+    let handle = focus.clone();
+    // Keep one highlighted row even when an arrow key moves focus away from a stationary pointer.
+    super::button_focus(super::pressable(div().id(id)), focus, hover).flex_none().flex().items_center()
+        .on_mouse_move(move |_, win, _| { if !handle.is_focused(win) { handle.focus(win); } })
+}
+
+/// Only actionable rows get a handle. Headings and separators never enter the cycle.
+pub(crate) struct MenuFocus<const N: usize> { pub(crate) items: [FocusHandle; N] }
+impl<const N: usize> MenuFocus<N> {
+    pub(crate) fn new(cx: &App) -> Self { Self { items: std::array::from_fn(|_| cx.focus_handle().tab_stop(true)) } }
+
+    pub(crate) fn navigate(&self, key: &Keystroke, window: &mut Window) -> Option<usize> {
+        let current = self.items.iter().position(|h| h.is_focused(window));
+        let index = match plain_key(key)? {
+            "down" | "tab" => current.map_or(0, |i| (i + 1) % N),
+            "up" | "shift-tab" => current.map_or(N - 1, |i| (i + N - 1) % N),
+            "home" => 0, "end" => N - 1, _ => return None,
+        };
+        self.items[index].focus(window);
+        Some(index)
+    }
+}
+
+pub(crate) fn plain_key(key: &Keystroke) -> Option<&str> {
+    if key.key == "tab" && key.modifiers == (Modifiers { shift: true, ..Default::default() }) { Some("shift-tab") }
+    else if !key.modifiers.modified() { Some(&key.key) } else { None }
+}
+
+pub(crate) fn traverse_tab(key: &Keystroke, window: &mut Window) -> bool {
+    match plain_key(key) {
+        Some("tab") => window.focus_next(), Some("shift-tab") => window.focus_prev(), _ => return false,
+    }
+    true
 }
 
 pub fn menu_row(id: impl Into<ElementId>, group: SharedString) -> Stateful<Div> {

@@ -1,7 +1,7 @@
 //! Scripted UI driver for development: `FDL_SCRIPT=steps.txt` replays input
 //! into the window and `shot <name>` saves PNGs of the window to `FDL_SHOTS`
 //! (default /tmp). One step per line:
-//!   wait <ms> | key <keystroke> | type <text> | move x y | click x y |
+//!   wait <ms> | key <keystroke> | press <keystroke> (down + up) | type <text> | move x y | click x y |
 //!   dclick x y | rclick x y | drag x1 y1 x2 y2 | shot <name> | burst <name> n |
 //!   mark <text> (IME composition) | commit <text> | nkey <letter> (a real
 //!   key press through AppKit, so the active input method sees it) |
@@ -569,11 +569,12 @@ fn run(cmd: &str, rest: &str, window: &mut Window, cx: &mut App) {
                 window.dispatch_event(PlatformInput::MouseUp(MouseUpEvent { button: MouseButton::Right, position, modifiers, click_count: 1 }), cx);
             }
         }
-        "key" => {
+        "key" | "press" => {
             for k in rest.split_whitespace() {
                 match Keystroke::parse(k) {
                     Ok(ks) => {
-                        let handled = window.dispatch_keystroke(ks, cx);
+                        let handled = window.dispatch_keystroke(ks.clone(), cx);
+                        if cmd == "press" { window.dispatch_event(PlatformInput::KeyUp(KeyUpEvent { keystroke: ks }), cx); }
                         if std::env::var_os("FDL_TRACE").is_some() {
                             eprintln!("devtools: key {k} handled={handled} focused={:?}", window.focused(cx).is_some());
                         }

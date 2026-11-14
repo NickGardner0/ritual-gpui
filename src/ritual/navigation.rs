@@ -23,6 +23,7 @@ pub enum Page { Destination(Destination), CreateSpace, Space(Uuid), Draft(Option
 pub(crate) struct Navigation {
     pub(super) index: super::index::IndexMenuState,
     pub(super) expanded: HashSet<Uuid>,
+    pub(super) history_buttons: [FocusHandle; 2],
     pub(super) visits: super::history::PageHistory,
     pub(super) hovered_destination: Option<Destination>,
     pub(super) name: Entity<TextField>,
@@ -69,7 +70,7 @@ impl Navigation {
                 }
             }));
         }
-        Self { index: Default::default(), name, goal, message, previous: View::Home, expanded: Default::default(), visits: Default::default(), hovered_destination: None,
+        Self { index: super::index::IndexMenuState::new(cx), history_buttons: std::array::from_fn(|_| cx.focus_handle().tab_stop(true)), name, goal, message, previous: View::Home, expanded: Default::default(), visits: Default::default(), hovered_destination: None,
             drafts: Default::default(), messages: vec![], logs: vec![], loading: false, error: None, request: 0,
             history_scroll: ScrollHandle::new(), _subscriptions: subscriptions }
     }

@@ -1,6 +1,19 @@
 use super::icon;
 use crate::{theme::{self, Theme, craft}, ui::{TitleBarExt, design::metrics}};
-use gpui::*;
+use gpui::{prelude::FluentBuilder, *};
+
+/// Supply the interaction states independently of a control's production geometry.
+pub(crate) fn button_surface(id: impl Into<ElementId>, enabled: bool, hover: Hsla) -> Stateful<Div> {
+    div().id(id).when(enabled, |d| pressable(d).hover(move |s| s.bg(hover)))
+}
+
+pub(super) fn pressable(d: Stateful<Div>) -> Stateful<Div> {
+    d.cursor_pointer().active(|s| s.bg(Theme::fill_pressed()))
+}
+
+pub(crate) fn button_focus(d: Stateful<Div>, handle: &FocusHandle, highlight: Hsla) -> Stateful<Div> {
+    d.track_focus(handle).focus(move |s| s.bg(highlight).border_color(Theme::primary()))
+}
 
 /// The header button: a white pill on the note (hairline, 1px drop, radius 12).
 pub fn pill() -> Div {
@@ -87,9 +100,8 @@ pub(crate) fn icon_button(id: &'static str, glyph: impl IntoElement) -> Stateful
 }
 
 pub(crate) fn icon_button_frame(id: impl Into<ElementId>) -> Stateful<Div> {
-    div().id(id).size(px(metrics().toolbar_target)).rounded(px(metrics().control_radius))
-        .flex_none().flex().items_center().justify_center().cursor_pointer()
-        .hover(|s| s.bg(Theme::fill_hover())).active(|s| s.bg(Theme::fill_pressed()))
+    button_surface(id, true, Theme::fill_hover()).size(px(metrics().toolbar_target)).rounded(px(metrics().control_radius))
+        .flex_none().flex().items_center().justify_center()
 }
 
 pub fn header_icon(id: &'static str, name: &'static str) -> Stateful<Div> {
