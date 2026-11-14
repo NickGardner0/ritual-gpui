@@ -118,7 +118,9 @@ Core 的不变量由 `crates/core/src/editor/fuzz_tests.rs` 在每一步随机�
 | `search.rs` | 搜索弹窗、高级搜索 |
 | `docmenu.rs` / `docinfo.rs` / `modes.rs` | 「…」菜单、文档信息、编辑 / 阅读切换和快捷键面板 |
 | `theme.rs` | 设计 token：`craft` 色阶、语义颜色 `Theme::*`、命名颜色的显示色、阴影 `shadow_*`、字阶、笔记面板尺寸 |
-| `ui.rs` / `input.rs` | 共用小部件（菜单外壳、菜单行、白色药丸按钮、提示、Toast）、单行输入框 |
+| `ui.rs` / `ui/components/` | 共用 GPUI 控件入口；按钮、图标、菜单、弹窗、文字、提示和 Toast 按组件分文件 |
+| `ui/design.rs` | Ritual 与 Quiet.md 各自的控件尺寸、间距和圆角；颜色仍由 `Theme` 提供 |
+| `input.rs` | 原生单行输入框 |
 | `highlight.rs` | 代码高亮 |
 | `assets.rs` | 编进二进制的图标、字体、封面图库 |
 | `devtools.rs` | 脚本驱动，只在 `--features devtools` 构建里编入（见 tools/harness/README.md） |
