@@ -91,9 +91,7 @@ pub(crate) struct Composer {
 
 impl Composer {
     pub(crate) fn new(habits: Entity<Habits>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let families = cx.text_system().all_font_names();
-        let family = ["FK Grotesk Neue", "FK Grotesk Neue Trial"].into_iter()
-            .find(|family| families.iter().any(|name| name == family)).unwrap_or(crate::theme::UI_FONT);
+        let family = super::appearance::production_font(cx);
         let colors = ComposerColors::current();
         let input = cx.new(|cx| {
             let mut f = TextField::new(Mode::Log.placeholder(), cx);

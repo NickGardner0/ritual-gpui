@@ -5,6 +5,7 @@ use gpui::{prelude::FluentBuilder, *};
 use ritual_core::{SpaceIndex, Thread};
 
 pub(crate) const SIDEBAR_WIDTH: f32 = 240.;
+const FIRST_NAV_ROW_Y: f32 = 87.; // Window-relative top of the Index pill in production Ritual.
 const NAV: [(Destination, &str); 9] = [
     (Destination::Home, "ritual/navigation/index.svg"), (Destination::Metrics, "ritual/navigation/chart-no-axes-column.svg"),
     (Destination::Logs, "editor-icons/table.svg"), (Destination::Tasks, "icons/list.svg"),
@@ -23,9 +24,13 @@ fn tool(id: &'static str, label: &'static str, path: &'static str) -> Stateful<D
         .hover(|s| s.bg(Theme::sidebar_hover())).child(glyph(path, 16., Theme::icon()))
 }
 
-fn row(id: String, selected: bool) -> Stateful<Div> {
+fn row_shape(id: String) -> Stateful<Div> {
     div().id(SharedString::from(id)).tab_index(0).min_w_0().h(px(34.)).px(px(16.))
         .flex().items_center().gap(px(11.)).rounded_full().cursor_pointer()
+}
+
+fn row(id: String, selected: bool) -> Stateful<Div> {
+    row_shape(id)
         .when(selected, |d| d.bg(Theme::sidebar_selected().opacity(0.38)))
         .when(!selected, |d| d.hover(|s| s.bg(Theme::sidebar_hover().opacity(0.42))))
 }
@@ -38,8 +43,18 @@ impl Workspace {
             View::Ritual(Page::Destination(current)) => dest == current,
             _ => false,
         };
-        row(format!("nav-{}", dest.label()), active)
-            .child(glyph(path, 18., Theme::sidebar_text())).child(dest.label())
+        let hovered = self.navigation.as_ref().is_some_and(|nav| nav.hovered_destination == Some(dest));
+        let ink = Theme::navigation_ink(active || hovered);
+        row_shape(format!("nav-{}", dest.label())).px(px(17.))
+            .font_family(super::appearance::navigation_font(cx)).text_size(px(14.)).font_weight(FontWeight::NORMAL)
+            .text_color(ink).when(active, |d| d.bg(Theme::navigation_highlight()))
+            .hover(|s| s.bg(Theme::navigation_highlight()))
+            .child(glyph(path, 18., ink)).child(dest.label())
+            .on_hover(cx.listener(move |ws, over: &bool, _, cx| {
+                let hovered = &mut ws.navigation.as_mut().unwrap().hovered_destination;
+                if *over { *hovered = Some(dest); } else if *hovered == Some(dest) { *hovered = None; }
+                cx.notify();
+            }))
             .on_click(cx.listener(move |ws, _, w, cx| ws.go_destination(dest, w, cx)))
     }
 
@@ -116,7 +131,7 @@ impl Workspace {
             else if documents { self.render_sidebar(window, cx) }
             else {
                 let index = self.habits.as_ref().unwrap().read(cx).spaces.clone();
-                div().id("ritual-navigation").size_full().overflow_y_scroll().child(div().px(px(9.)).pt(px(32.)).pb(px(12.))
+                div().id("ritual-navigation").size_full().overflow_y_scroll().child(div().px(px(9.)).pt(px(FIRST_NAV_ROW_Y - HEADER_H)).pb(px(12.))
                     .child(div().flex().flex_col().gap(px(5.))
                         .children(NAV.into_iter().map(|(dest, path)| self.destination_row(dest, path, cx))))
                     .child(self.threads_section(&index, cx))).into_any_element()

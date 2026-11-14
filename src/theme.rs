@@ -398,6 +398,14 @@ impl Theme {
     pub(crate) fn sidebar_divider() -> Hsla {
         if dark() { rgbaf(255, 255, 255, 0.10) } else { rgbaf(15, 23, 42, 0.05) }
     }
+    /// Production Ritual's --sidebar-nav-foreground, --sidebar-nav-active and --row-hover.
+    pub(crate) fn navigation_ink(emphasized: bool) -> Hsla {
+        let (normal, active) = if dark() { (0xd0d0ca, 0xf7f7f3) } else { (0x303030, 0x111111) };
+        rgb(if emphasized { active } else { normal }).into()
+    }
+    pub(crate) fn navigation_highlight() -> Hsla {
+        if dark() { rgbaf(255, 255, 255, 0.055) } else { rgbaf(17, 24, 39, 0.032) }
+    }
     pub fn sidebar_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
     /// Selected sidebar row (measured #DEDEDF).
     pub fn sidebar_selected() -> Hsla { workspace_color!(selected, ca(craft::N1000, 0.072)) }

@@ -105,6 +105,16 @@ fn installed(name: &str, cx: &App) -> Option<&'static str> {
     fonts(cx).iter().find(|f| f.as_str() == name).map(String::as_str)
 }
 
+pub(super) fn production_font(cx: &App) -> &'static str {
+    static FAMILY: OnceLock<&'static str> = OnceLock::new();
+    FAMILY.get_or_init(|| ["FK Grotesk Neue", "FK Grotesk Neue Trial"].into_iter()
+        .find_map(|name| installed(name, cx)).unwrap_or(crate::theme::UI_FONT))
+}
+
+pub(super) fn navigation_font(cx: &App) -> &'static str {
+    ACTIVE.get().ui_font.unwrap_or_else(|| production_font(cx))
+}
+
 pub(crate) fn resolve(colors: &Selection, system_dark: bool) -> (Option<&'static Palette>, bool) {
     let name = colors.name(system_dark);
     let palette = palette_named(name);

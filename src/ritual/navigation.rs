@@ -23,6 +23,7 @@ pub enum Page { Destination(Destination), CreateSpace, Space(Uuid), Draft(Option
 pub(crate) struct Navigation {
     pub(super) expanded: HashSet<Uuid>,
     pub(crate) documents_open: bool,
+    pub(super) hovered_destination: Option<Destination>,
     pub(super) name: Entity<TextField>,
     pub(super) goal: Entity<TextField>,
     pub(super) message: Entity<TextField>,
@@ -67,7 +68,7 @@ impl Navigation {
                 }
             }));
         }
-        Self { name, goal, message, previous: View::Home, expanded: Default::default(), documents_open: false,
+        Self { name, goal, message, previous: View::Home, expanded: Default::default(), documents_open: false, hovered_destination: None,
             drafts: Default::default(), messages: vec![], logs: vec![], loading: false, error: None, request: 0,
             history_scroll: ScrollHandle::new(), _subscriptions: subscriptions }
     }
