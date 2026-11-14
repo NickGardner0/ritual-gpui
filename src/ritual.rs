@@ -1,5 +1,7 @@
 //! Tracked habits on the Ritual Home tab.
 mod view;
+mod index;
+mod index_calendar;
 pub(crate) mod appearance;
 mod navigation;
 mod sidebar;
@@ -52,9 +54,14 @@ fn database_path() -> Result<PathBuf> {
     Ok(root.join("ritual.sqlite3"))
 }
 
+pub(crate) struct RemoveHabit(pub Uuid, pub String);
+impl EventEmitter<RemoveHabit> for Habits {}
+
 pub(crate) struct Habits {
     db: Option<Arc<Mutex<Store>>>,
     habits: Vec<TrackedHabit>,
+    days: ritual_core::DailyTotals,
+    period: index_calendar::Period,
     spaces: Arc<ritual_core::SpaceIndex>,
     pub(crate) grid: bool,
     selected: Option<Uuid>,
@@ -84,7 +91,7 @@ impl Habits {
             }
         })];
         subscriptions.push(cx.observe_window_appearance(window, |this, _, cx| this.refresh_colors(cx)));
-        let mut this = Self { db: None, habits: vec![], spaces: Default::default(), selected: None, history: None, history_request: 0,
+        let mut this = Self { db: None, habits: vec![], days: Default::default(), period: Default::default(), spaces: Default::default(), selected: None, history: None, history_request: 0,
             grid, saving: false, quit_after_save: false, log_draft: None, error: None,
             amount, focus: cx.focus_handle(),
             _subscriptions: subscriptions };
@@ -99,16 +106,18 @@ impl Habits {
             let path = database_path()?;
             let db = Store::open(&path).with_context(|| format!("Open {}", path.display()))?;
             let habits = db.index()?;
+            let days = db.daily_totals()?;
             let spaces = db.space_index()?;
-            anyhow::Ok((db, habits, spaces))
+            anyhow::Ok((db, habits, days, spaces))
         });
         cx.spawn_in(window, async move |this, cx| {
             let result = load.await;
             let _ = this.update(cx, |view, cx| {
                 match result {
-                    Ok((db, habits, spaces)) => {
+                    Ok((db, habits, days, spaces)) => {
                         view.db = Some(Arc::new(Mutex::new(db)));
                         view.habits = habits;
+                        view.days = days;
                         view.spaces = Arc::new(spaces);
                     }
                     Err(err) => view.error = Some(format!("{err:#}")),
@@ -164,6 +173,34 @@ impl Habits {
         cx.notify();
     }
 
+    fn confirm_remove(&self, id: Uuid, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.saving && let Some(h) = self.habits.iter().find(|h| h.habit.id == id) {
+            self.focus.focus(window);
+            cx.emit(RemoveHabit(id, h.habit.name.clone()));
+        }
+    }
+
+    pub(crate) fn delete_habit(&mut self, id: Uuid, cx: &mut Context<Self>) {
+        let Some(db) = self.db.clone() else { return };
+        if self.saving { return; }
+        self.saving = true;
+        let delete = cx.background_executor().spawn(async move { db.lock().await.delete_habit(id) });
+        cx.spawn(async move |this, cx| {
+            let result = delete.await;
+            let _ = this.update(cx, |h, cx| {
+                h.saving = false;
+                let quit = std::mem::take(&mut h.quit_after_save) && result.is_ok();
+                match result {
+                    Ok(()) => { h.habits.retain(|row| row.habit.id != id); h.days.forget(id); h.show_list(cx); }
+                    Err(e) => h.error = Some(format!("Could not delete habit. {e:#}")),
+                }
+                cx.notify();
+                if quit { cx.defer(crate::app::quit); }
+            });
+        }).detach();
+        cx.notify();
+    }
+
     fn submit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.saving { return; }
         let Some(db) = self.db.clone() else { return };
@@ -195,6 +232,7 @@ impl Habits {
                                 if let Some(h) = view.habits.iter_mut().find(|h| h.habit.id == entry.habit_id) {
                                     h.count += 1; h.total += entry.amount;
                                 }
+                                view.days.record(&entry);
                                 rows.insert(pos, entry);
                             }
                         }

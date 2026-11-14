@@ -200,6 +200,7 @@ pub enum Confirm {
     Purge(String),
     /// 回收站 → 清空回收站: every trashed page, permanently.
     EmptyTrash,
+    DeleteHabit(uuid::Uuid, String),
     /// 隐藏引用列表 (with 不再提示) / 显示引用列表.
     Refs { show: bool, no_ask: bool },
     /// The open document could not be written before it was to be replaced
@@ -489,6 +490,10 @@ impl Workspace {
             ws._subs.push(cx.subscribe_in(&composer, window, |ws, _, _: &crate::ritual::PresentationChanged, _, cx| {
                 cx.notify();
                 ws.home.sort_menu = false;
+            }));
+            ws._subs.push(cx.subscribe_in(&habits, window, |ws, _, event: &crate::ritual::RemoveHabit, win, cx| {
+                ws.focus.focus(win);
+                ws.confirm = Some(Confirm::DeleteHabit(event.0, event.1.clone())); cx.notify();
             }));
             ws._subs.push(cx.observe(&habits, |_, _, cx| cx.notify()));
             ws.navigation = Some(crate::ritual::Navigation::new(window, cx));
@@ -788,7 +793,7 @@ impl Workspace {
         cx.notify();
     }
 
-    fn pick_habit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn pick_habit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(habits) = self.habits.clone() else { return };
         if self.habit_picker.is_some() || habits.read(cx).saving() { return; }
         self.row_menu = None;
@@ -818,6 +823,7 @@ impl Workspace {
             self.home.tab = crate::home::HomeTab::Habits;
             page.update(cx, |h, cx| h.show_list(cx));
         }
+        self.close_index_menu();
         self.view = view;
         self.workspace_theme_picker = None;
         self.row_menu = None;

@@ -21,6 +21,7 @@ impl Destination {
 pub enum Page { Destination(Destination), CreateSpace, Space(Uuid), Draft(Option<Uuid>), Thread(Uuid) }
 
 pub(crate) struct Navigation {
+    pub(super) index: super::index::IndexMenuState,
     pub(super) expanded: HashSet<Uuid>,
     pub(crate) documents_open: bool,
     pub(super) hovered_destination: Option<Destination>,
@@ -68,7 +69,7 @@ impl Navigation {
                 }
             }));
         }
-        Self { name, goal, message, previous: View::Home, expanded: Default::default(), documents_open: false, hovered_destination: None,
+        Self { index: Default::default(), name, goal, message, previous: View::Home, expanded: Default::default(), documents_open: false, hovered_destination: None,
             drafts: Default::default(), messages: vec![], logs: vec![], loading: false, error: None, request: 0,
             history_scroll: ScrollHandle::new(), _subscriptions: subscriptions }
     }

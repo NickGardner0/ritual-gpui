@@ -37,8 +37,12 @@ struct ComposerColors {
 impl ComposerColors {
     fn current() -> Self {
         if let Some(p) = super::appearance::palette() {
-            return Self { surface: p.surface, text: p.text, secondary: p.muted, muted: p.placeholder, icon: p.icon,
-                on_send: p.page, action_fill: p.hover, mode_track: p.hover, mode_selected: p.selected, send_disabled: p.disabled };
+            // Keep the desktop surface and control contrast on the selected palette's canvas.
+            let text = p.ink;
+            return Self { surface: p.page.blend(text.opacity(0.045)), text, secondary: text.opacity(0.79),
+                muted: text.opacity(0.68), icon: text.opacity(0.76), on_send: p.page,
+                action_fill: text.opacity(0.07), mode_track: text.opacity(0.05),
+                mode_selected: text.opacity(0.14), send_disabled: text.opacity(0.35) };
         }
         let dark = crate::theme::dark();
         let color = |light, night| rgb(if dark { night } else { light }).into();
@@ -91,7 +95,7 @@ pub(crate) struct Composer {
 
 impl Composer {
     pub(crate) fn new(habits: Entity<Habits>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let family = super::appearance::production_font(cx);
+        let family = super::appearance::navigation_font(cx);
         let colors = ComposerColors::current();
         let input = cx.new(|cx| {
             let mut f = TextField::new(Mode::Log.placeholder(), cx);

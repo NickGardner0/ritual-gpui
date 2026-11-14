@@ -1,10 +1,13 @@
 use super::*;
 use crate::ui::design::RITUAL;
-use crate::{theme::Theme, ui};
+use crate::{theme::Theme, ui::{self, TipExt}};
 use gpui::prelude::FluentBuilder;
 
 fn button(id: &'static str, label: &'static str, primary: bool) -> Stateful<Div> {
-    let button = if primary { ui::primary_button(id, label) } else { ui::secondary_button(id, label) };
+    let button = div().id(id).h(px(32.)).px(px(12.)).flex().items_center().justify_center().rounded(px(7.))
+        .border_1().border_color(Theme::index_border()).cursor_pointer().child(label);
+    let button = if primary { button.bg(Theme::navigation_ink(true)).text_color(Theme::bg_body()).hover(|s| s.opacity(0.87)) }
+        else { button.text_color(Theme::navigation_ink(false)).hover(|s| s.bg(Theme::navigation_highlight())) };
     button.tab_index(4).focus(|el| el.border_1().border_color(Theme::primary()))
 }
 
@@ -78,28 +81,47 @@ impl Render for Habits {
             content = content.child(self.detail(&h.habit, window, cx));
         } else if self.db.is_some() {
             let mut items = div().w_full().mx_auto().flex();
-            if self.grid { items = items.flex_wrap().gap(px(16.)); }
-            else { items = items.max_w(px(408.)).flex_col().pt(px(16.)); }
+            if self.grid {
+                let width = f32::from(window.viewport_size().width);
+                let columns = if width >= 1024. { 3 } else if width >= 640. { 2 } else { 1 };
+                items = items.grid().grid_cols(columns).max_w(px(960.)).gap(px(10.));
+            }
+            else { items = items.max_w(px(408.)).flex_col(); }
+            let range = self.period.range(chrono::Local::now().date_naive());
             for h in &self.habits {
                 let id = h.habit.id;
-                let row = div().id(SharedString::from(id.to_string())).flex().rounded(px(RITUAL.row_radius)).cursor_pointer()
-                    .hover(|s| s.bg(Theme::fill_hover()))
+                let row = div().id(SharedString::from(id.to_string())).tab_index(0).group("index-habit").flex().rounded(px(6.)).cursor_pointer()
+                    .focus(|s| s.bg(Theme::navigation_highlight()))
+                    .hover(|s| s.bg(Theme::navigation_highlight()))
                     .on_click(cx.listener(move |v, _, w, cx| v.select(id, w, cx)));
-                let name = div().min_w_0().font_weight(FontWeight::MEDIUM).child(h.habit.name.clone());
-                let value = format!("{} {}", display_amount(h.value()), h.habit.unit);
+                let name = div().min_w_0().text_color(Theme::index_name()).child(h.habit.name.clone());
+                let value = display_amount(range.as_ref().map_or_else(|| h.value(), |r| self.days.value(h, r)));
                 items = items.child(if self.grid {
-                    row.w(px(192.)).max_w_full().h(px(128.)).p(px(15.)).flex_col().rounded(px(RITUAL.menu_radius))
-                        .border_1().border_color(Theme::line_border())
+                    row.min_w_0().h(px(150.)).px(px(16.)).py(px(14.)).flex_col().rounded(px(4.))
+                        .border_1().border_color(Theme::index_border())
                         .child(div().text_size(px(12.)).text_color(Theme::text_caption()).child(h.habit.category.clone()))
-                        .child(name.w_full().overflow_hidden().max_h(px(42.)).mt(px(3.)).text_size(px(17.)).line_height(px(21.))).child(div().flex_1()).child(div().text_size(px(21.)).font_weight(FontWeight::MEDIUM).child(value))
+                        .child(name.w_full().overflow_hidden().max_h(px(42.)).mt(px(3.)).text_size(px(17.)).line_height(px(21.))).child(div().flex_1()).child(div().text_size(px(22.)).text_color(Theme::index_value()).child(format!("{} {}", value, h.habit.unit)))
                 } else {
-                    row.w_full().min_h(px(RITUAL.menu_height)).px(px(RITUAL.row_padding)).gap(px(16.)).justify_between().items_center()
-                        .text_size(px(17.)).child(name.truncate()).child(div().flex_none().child(value))
+                    let remove = div().id(SharedString::from(format!("remove-{id}"))).size(px(20.)).flex_none().rounded_full()
+                        .flex().items_center().justify_center().invisible().group_hover("index-habit", |s| s.visible())
+                        .hover(|s| s.bg(Theme::fill_hover_strong())).tip("Delete habit", None)
+                        .child(ui::icon("x", 11., Theme::index_secondary()))
+                        .on_click(cx.listener(move |v, _, w, cx| { cx.stop_propagation(); v.confirm_remove(id, w, cx); }));
+                    row.w_full().h(px(27.)).px(px(4.)).flex_none().gap(px(16.)).items_center().text_size(px(17.5)).line_height(px(19.))
+                        .on_key_down(cx.listener(move |v, ev: &KeyDownEvent, w, cx| {
+                            if ev.keystroke.key == "delete" || ev.keystroke.key == "backspace" {
+                                v.confirm_remove(id, w, cx); cx.stop_propagation();
+                            }
+                        }))
+                        .child(name.flex_1().truncate()).child(div().flex().items_center().gap(px(4.)).flex_none()
+                            .child(div().text_color(Theme::index_value()).child(value))
+                            .child(div().text_color(Theme::index_name()).child(h.habit.unit.clone())).child(remove))
                 });
             }
             if self.habits.is_empty() { content = content.child(div().size_full().flex().flex_col().items_center().justify_center()
-                .gap(px(6.)).child(title("Track your first habit")).child(div().text_color(Theme::text_caption()).child("Choose + above to get started."))); }
+                .gap(px(6.)).child(title("Track your first habit")).child(div().text_color(Theme::text_caption()).child("Open Actions and choose Add habit."))); }
             else { content = content.overflow_y_scroll().child(items); }
+            if let Some(error) = &self.error { content = content.child(div().pt(px(8.)).text_center().text_color(Theme::danger()).child(error.clone())); }
         } else if let Some(error) = &self.error {
             content = content.child(title("Could not open habits")).child(div().my(px(15.)).text_color(Theme::danger()).child(error.clone()))
                 .child(div().flex().child(button("retry-open", "Retry", true)
@@ -108,7 +130,7 @@ impl Render for Habits {
             content = content.child("Opening habits…");
         }
         div().flex_1().min_h_0().flex().flex_col().tab_group().track_focus(&self.focus).key_context("Habits")
-            .text_size(px(14.)).text_color(Theme::text())
+            .font_family(super::appearance::navigation_font(cx)).text_size(px(14.)).text_color(Theme::navigation_ink(false))
             .on_action(|_: &input::Tab, window, _| window.focus_next())
             .on_action(|_: &input::ShiftTab, window, _| window.focus_prev())
             .on_action(cx.listener(|view, _: &input::Cancel, window, cx| { view.show_list(cx); view.focus.focus(window); }))

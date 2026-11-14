@@ -548,8 +548,7 @@ impl Workspace {
     /// The grid / list switcher: one white pill, the current view on a quiet
     /// fill. 主页 and folder pages share it, so a folder opens in the view its parent showed.
     pub(crate) fn view_switch(&self, cx: &mut Context<Self>) -> Div {
-        let habits = self.view == crate::app::View::Home && self.home.tab == HomeTab::Habits;
-        let current_grid = if habits { self.habits.as_ref().is_some_and(|p| p.read(cx).grid) } else { self.home.grid };
+        let current_grid = self.home.grid;
         let toggle = |id: &'static str, ic: &'static str, on: bool, tip: &'static str, grid: bool| {
             div()
                 .id(id)
@@ -564,15 +563,8 @@ impl Workspace {
                 .when(!on, |d| d.tip(tip, None).hover(|s| s.bg(Theme::fill_hover())))
                 .child(icon(ic, metrics().menu_icon - 2., Theme::icon()))
                 .on_click(cx.listener(move |w, _, _, cx| {
-                    if habits && let Some(page) = &w.habits {
-                        page.update(cx, |h, cx| { h.grid = grid; cx.notify(); });
-                        let mut settings = w.store.settings();
-                        settings.ritual_habits_grid = grid;
-                        if let Err(e) = w.store.save_settings(&settings) { w.show_toast_kind(crate::ui::ToastKind::Error, &e.to_string(), cx); }
-                    } else {
-                        w.home.grid = grid;
-                        w.save_home();
-                    }
+                    w.home.grid = grid;
+                    w.save_home();
                     w.home.sort_menu = false;
                     cx.notify();
                 }))
@@ -611,7 +603,7 @@ impl Workspace {
         // Too narrow for the search box: a search icon beside +, in the same style.
         let ritual = self.habits.is_some();
         if self.batch.is_some() && self.home.tab == HomeTab::Habits { self.home.tab = HomeTab::Recent; }
-        let tracking = self.home.tab == HomeTab::Habits;
+        if ritual && self.home.tab == HomeTab::Habits { return self.render_ritual_index(window, cx); }
         let search = self.header_search(window, cx);
         let narrow = search.is_none();
         let header = page_header(self, crate::settings::text("主页"), 26., cx).relative().children(search)
@@ -698,7 +690,7 @@ impl Workspace {
             .child(tab("home-tab-recent", crate::settings::text("我的文档"), HomeTab::Recent))
             .child(tab("home-tab-star", crate::settings::text("收藏"), HomeTab::Starred))
             .child(div().flex_1())
-            .when(!tracking, |d| d.child(text_btn("home-batch", "batch", crate::settings::text("批量管理"), true).text_color(Theme::text_caption()).mr(px(8.))
+            .child(text_btn("home-batch", "batch", crate::settings::text("批量管理"), true).text_color(Theme::text_caption()).mr(px(8.))
                 .on_click(cx.listener(|w, _, _, cx| { w.batch = Some(vec![]); w.row_menu = None; w.home.sort_menu = false; cx.notify(); })))
             .child(
                 div().id("home-sort").relative().h(px(metrics().small_control_height)).px(px(10.)).flex().items_center().gap(px(6.))
@@ -708,14 +700,11 @@ impl Workspace {
                     .child(self.home.track("home-sort"))
                     .on_click(cx.listener(|w, _, _, cx| { w.home.sort_menu = !w.home.sort_menu; cx.notify(); })),
             )
-            )
             .child(self.view_switch(cx).ml(px(16.))
             ) };
 
         let entries = self.home_entries();
-        let body = if tracking {
-            self.habits.clone().expect("Ritual Home").into_any_element()
-        } else if entries.is_empty() && (self.home.grid || self.home.tab == HomeTab::Recent) {
+        let body = if entries.is_empty() && (self.home.grid || self.home.tab == HomeTab::Recent) {
             empty_state("illus/empty-list.svg", crate::settings::text("当前列表暂无内容")).into_any_element()
         } else if self.home.grid {
             self.render_home_grid(&entries, false, window, cx)
@@ -731,8 +720,6 @@ impl Workspace {
             .child(header)
             .child(toolbar)
             .child(body)
-            .when(tracking, |d| d.children(self.composer.as_ref().filter(|c| !c.read(cx).expanded).cloned()
-                .map(|composer| div().w_full().flex_none().flex().justify_center().px(px(16.)).pb(px(32.)).child(composer))))
             .into_any_element()
     }
 

@@ -138,6 +138,10 @@ pub fn dialog(id: &'static str) -> Stateful<Div> {
 
 /// The primary button: the accent, a white 13pt semibold label, at the workspace control height.
 pub fn primary_button(id: &'static str, label: &'static str) -> Stateful<Div> {
+    filled_button(id, label, false)
+}
+
+pub(crate) fn filled_button(id: &'static str, label: &'static str, danger: bool) -> Stateful<Div> {
     div()
         .id(id)
         .flex_none()
@@ -148,10 +152,10 @@ pub fn primary_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .justify_center()
         .rounded(px(metrics().control_radius))
         .cursor_pointer()
-        .bg(Theme::primary())
+        .bg(if danger { Theme::danger() } else { Theme::primary() })
         .shadow(theme::shadow_button())
-        .hover(|s| s.bg(crate::ritual::appearance::palette().map_or_else(|| theme::c(craft::B600), |p| p.accent.opacity(0.85))))
-        .active(|s| s.bg(crate::ritual::appearance::palette().map_or_else(|| theme::c(craft::B700), |p| p.accent.opacity(0.7))))
+        .hover(move |s| s.bg(if danger { theme::c(craft::R600) } else { crate::ritual::appearance::palette().map_or_else(|| theme::c(craft::B600), |p| p.accent.opacity(0.85)) }))
+        .active(move |s| s.bg(if danger { theme::c(craft::R700) } else { crate::ritual::appearance::palette().map_or_else(|| theme::c(craft::B700), |p| p.accent.opacity(0.7)) }))
         .text_size(px(13.))
         .line_height(px(20.))
         .font_weight(FontWeight::SEMIBOLD)

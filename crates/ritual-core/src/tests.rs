@@ -107,3 +107,38 @@ fn upgrading_a_water_library_preserves_logs_and_both_kinds_of_thread() -> Result
     assert_eq!(db.all_logs()?, [("Water".into(), "glasses".into(), entry)]);
     Ok(())
 }
+
+#[test]
+fn index_range_uses_local_days_and_deletion_preserves_other_habits() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("track.sqlite3");
+    let mut store = Store::open(&path)?;
+    let water = store.create_habit(Uuid::new_v4(), "Water", "Health", "glasses")?;
+    let pulse = store.create_habit(Uuid::new_v4(), "Pulse", "Health", "BPM")?;
+    let mut days = store.daily_totals()?;
+    for (id, amount, time) in [
+        (water.id, 2., "2026-11-10T23:55:00-05:00"),
+        (water.id, 1., "2026-11-11T12:00:00-05:00"),
+        (pulse.id, 60., "2026-11-10T08:00:00-05:00"),
+        (pulse.id, 66., "2026-11-10T09:00:00-05:00"),
+        (pulse.id, 90., "2026-11-11T18:00:00-05:00"),
+    ] {
+        let entry = store.append(&ManualLog { at: DateTime::parse_from_rfc3339(time)?, ..ManualLog::now(id, amount) })?;
+        days.record(&entry);
+    }
+    let rows = store.index()?;
+    let day: NaiveDate = "2026-11-10".parse()?;
+    for totals in [days, store.daily_totals()?] {
+        let row = |id| rows.iter().find(|h| h.habit.id == id).unwrap();
+        assert_eq!(totals.value(row(water.id), &(day..=day)), 2.);
+        assert_eq!(totals.value(row(pulse.id), &(day..=day)), 63.);
+        assert_eq!(totals.value(row(pulse.id), &(day..=day.succ_opt().unwrap())), 72.);
+    }
+    store.delete_habit(water.id)?;
+    drop(store);
+    let store = Store::open(&path)?;
+    assert!(store.history(water.id)?.is_empty());
+    assert_eq!(store.habits()?, [pulse]);
+    assert_eq!(store.all_logs()?.len(), 3);
+    Ok(())
+}

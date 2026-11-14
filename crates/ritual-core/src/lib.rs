@@ -5,7 +5,7 @@ pub use spaces::{Space, SpaceIndex, Thread};
 use anyhow::{Context, Result, bail, ensure};
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, Utc};
 use rusqlite::{Connection, Row, TransactionBehavior, params};
-use std::path::Path;
+use std::{collections::{BTreeMap, HashMap}, ops::RangeInclusive, path::Path};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -38,8 +38,30 @@ impl TrackedHabit {
         matches!(self.habit.unit.to_ascii_lowercase().as_str(), "bpm" | "percentage" | "%" | "percent" | "hrv" | "mmhg" | "temperature" | "blood sugar" | "blood pressure" | "sleep score" | "recovery score")
     }
     pub fn value(&self) -> f64 {
-        if self.average_metric() && self.count > 0 { self.total / self.count as f64 } else { self.total }
+        self.summarize(self.total, self.count)
     }
+    fn summarize(&self, total: f64, count: usize) -> f64 {
+        if self.average_metric() && count > 0 { total / count as f64 } else { total }
+    }
+}
+
+/// Index filtering uses the calendar day recorded at capture, including its local UTC offset.
+#[derive(Default)]
+pub struct DailyTotals(HashMap<Uuid, BTreeMap<NaiveDate, (f64, usize)>>);
+
+impl DailyTotals {
+    pub fn record(&mut self, entry: &Entry) {
+        let day = self.0.entry(entry.habit_id).or_default().entry(entry.date).or_default();
+        day.0 += entry.amount; day.1 += 1;
+    }
+
+    pub fn value(&self, habit: &TrackedHabit, range: &RangeInclusive<NaiveDate>) -> f64 {
+        let Some(days) = self.0.get(&habit.habit.id) else { return 0. };
+        let (total, count) = days.range(range.clone()).fold((0., 0), |(sum, n), (_, (amount, entries))| (sum + amount, n + entries));
+        habit.summarize(total, count)
+    }
+
+    pub fn forget(&mut self, habit: Uuid) { self.0.remove(&habit); }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -134,6 +156,25 @@ impl Store {
             GROUP BY h.id ORDER BY h.created_at, h.id")?;
         Ok(q.query_map([], |r| Ok(TrackedHabit { habit: Habit::read(r)?, total: r.get(6)?, count: r.get(7)? }))?
             .collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn daily_totals(&self) -> Result<DailyTotals> {
+        let mut days = DailyTotals::default();
+        let mut query = self.0.prepare("SELECT habit_id, date, SUM(amount), COUNT(*) FROM habit_logs
+            WHERE status = 'completed' GROUP BY habit_id, date")?;
+        let mut rows = query.query([])?;
+        while let Some(row) = rows.next()? {
+            days.0.entry(row.get(0)?).or_default().insert(row.get(1)?, (row.get(2)?, row.get(3)?));
+        }
+        Ok(days)
+    }
+
+    pub fn delete_habit(&mut self, id: Uuid) -> Result<()> {
+        let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute("DELETE FROM habit_logs WHERE habit_id = ?", [id])?;
+        tx.execute("DELETE FROM habits WHERE id = ?", [id])?;
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn append(&mut self, log: &ManualLog) -> Result<Entry> {

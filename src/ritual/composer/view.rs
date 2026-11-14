@@ -69,9 +69,8 @@ impl Composer {
             .child(div().flex().flex_1().min_w(px(2. * ACTION_SIZE + 8.)).items_center().justify_end().gap(px(8.)).child(voice).child(send));
 
         // Desktop's idle panel is 104pt: 12 top + 50 writing area + 32 actions + 10 bottom.
-        div().relative().w_full().flex_none().flex().flex_col().rounded(px(RITUAL.dialog_radius)).bg(colors.surface)
-            .border_1().border_color(Theme::line_border())
-            .pl(px(15.)).pr(px(11.)).pt(px(11.)).pb(px(9.))
+        div().relative().w_full().flex_none().flex().flex_col().rounded(px(12.)).bg(colors.surface)
+            .pl(px(16.)).pr(px(12.)).pt(px(12.)).pb(px(10.))
             .when(self.context_open, |panel| panel.child(self.context_list(cx)))
             .when(draft.habit.is_some() || draft.attachment.is_some(), |panel| panel.child(
                 div().flex().flex_wrap().gap(px(4.)).pb(px(6.))
@@ -174,9 +173,10 @@ impl Render for Composer {
     fn render(&mut self, w: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = ComposerColors::current();
         let input = self.input.read(cx);
-        let family = input.font.unwrap_or(theme::ui_font());
-        if input.color != colors.text || input.placeholder_color != colors.muted {
+        let family = super::super::appearance::navigation_font(cx);
+        if input.font != Some(family) || input.color != colors.text || input.placeholder_color != colors.muted {
             self.input.update(cx, |field, cx| {
+                field.font = Some(family);
                 field.color = colors.text;
                 field.placeholder_color = colors.muted;
                 cx.notify();

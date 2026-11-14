@@ -45,7 +45,7 @@ impl Picker {
         let field = |hint, cx: &mut Context<Self>| cx.new(|cx| {
             let mut f = TextField::new(hint, cx);
             f.tab_events = true;
-            f.size = 14.;
+            f.size = 14.; f.font = Some(super::appearance::navigation_font(cx));
             f
         });
         let query = field("Search devices or habits…", cx);
@@ -215,8 +215,8 @@ impl Picker {
                 Choice::Source(s) => ui::icon(s.icon, RITUAL.menu_icon, Theme::icon()).into_any_element(),
                 _ => ui::icon("list-todo", RITUAL.menu_icon, Theme::icon()).into_any_element(),
             };
-            let row = ui::option_row(("habit-option", i)).h(px(RITUAL.menu_height + 4.)).text_size(px(14.))
-                .when(active, |d| d.bg(Theme::fill_hover_strong()))
+            let row = super::index::option(("habit-option", i)).h(px(36.)).text_color(Theme::navigation_ink(false)).text_size(px(14.))
+                .when(active, |d| d.bg(Theme::navigation_highlight()))
                 .on_hover(cx.listener(move |p, hovering: &bool, _, cx| { if *hovering { p.active = i; cx.notify(); } }))
                 .child(icon).child(choice.label()).child(div().flex_1())
                 .when_some(match choice { Choice::Source(s) if s.device() => Some("Manual only"), _ if active => Some("↵"), _ => None },
@@ -232,7 +232,7 @@ impl Picker {
     fn config(&self, custom: bool, w: &Window, cx: &mut Context<Self>) -> Div {
         let saving = self.habits.read(cx).saving;
         let control = || div().flex_1().min_w_0().h(px(RITUAL.control_height)).max_w(px(260.)).px(px(10.)).flex().items_center()
-            .rounded(px(RITUAL.control_radius)).border_1().border_color(Theme::line_border()).bg(Theme::bg_body());
+            .rounded(px(7.)).border_1().border_color(Theme::line_border()).bg(Theme::bg_body());
         let row = |label: &'static str, content: AnyElement| div().px(px(13.)).py(px(4.)).flex().items_center().justify_between()
             .border_b_1().border_color(ui::list_line()).child(div().mr(px(8.)).text_color(Theme::text_caption()).child(label)).child(content);
         let name = self.title.read(cx).text.clone();
@@ -241,7 +241,7 @@ impl Picker {
         let (y,m,d,_,_) = crate::time::civil(crate::time::now());
         let month = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][(m-1) as usize];
         let metric_bounds = self.metric_bounds.clone();
-        let fields = div().rounded(px(RITUAL.menu_radius)).overflow_hidden().bg(Theme::fill_hover()).child(row("Title", control().id("habit-title")
+        let fields = div().rounded(px(7.)).overflow_hidden().bg(Theme::fill_hover()).child(row("Title", control().id("habit-title")
             .when(custom && !saving, |el| el.cursor(CursorStyle::IBeam)
                 .on_click(move |_, w, _| title.focus(w)).child(self.title.clone()))
             .when(!custom || saving, |el| el.child(name)).into_any_element()))
@@ -256,12 +256,12 @@ impl Picker {
             .child(fields)
             .when_some(self.error.clone(), |d,e| d.child(div().mt(px(6.)).text_color(Theme::danger()).child(e)))
             .child(div().mt(px(18.)).flex().justify_end().items_center().gap(px(6.))
-                .child(div().id("cancel-config").h(px(RITUAL.control_height)).px(px(12.)).rounded(px(RITUAL.control_radius)).hover(|s| s.bg(Theme::fill_hover())).flex().items_center().cursor_pointer().text_color(Theme::text_caption())
+                .child(div().id("cancel-config").h(px(RITUAL.control_height)).px(px(12.)).rounded(px(7.)).hover(|s| s.bg(Theme::fill_hover())).flex().items_center().cursor_pointer().text_color(Theme::text_caption())
                     .child("Cancel").on_click(cx.listener(|p, _, w, cx| p.back(w,cx))))
-                .child(div().id("start-tracking").track_focus(&self.start_focus).h(px(RITUAL.control_height)).px(px(16.)).flex().items_center().rounded(px(RITUAL.control_radius))
-                    .bg(Theme::text()).text_color(Theme::bg_body()).when(!enabled, |d| d.opacity(0.40))
+                .child(div().id("start-tracking").track_focus(&self.start_focus).h(px(RITUAL.control_height)).px(px(16.)).flex().items_center().rounded(px(7.))
+                    .bg(Theme::navigation_ink(true)).text_color(Theme::bg_body()).when(!enabled, |d| d.opacity(0.40))
                     .when(self.start_focus.is_focused(w), |d| d.border_2().border_color(Theme::primary()))
-                    .when(enabled, |d| d.cursor_pointer().on_click(cx.listener(|p, _, w, cx| p.save(w,cx))))
+                    .when(enabled, |d| d.cursor_pointer().hover(|s| s.opacity(0.87)).on_click(cx.listener(|p, _, w, cx| p.save(w,cx))))
                     .child(if saving { "Starting…" } else { "Start Tracking" })))
     }
 
@@ -271,7 +271,7 @@ impl Picker {
         let rows = self.choices(cx);
         for (i, choice) in rows.iter().copied().enumerate() {
             options = options.child(ui::option_row(("metric", i))
-                .when(self.active == i, |d| d.bg(Theme::fill_hover_strong()))
+                .when(self.active == i, |d| d.bg(Theme::navigation_highlight()))
                 .child(choice.label()).child(div().flex_1()).when(choice.label()==self.metric, |d| d.child(ui::icon("check",13.,Theme::icon())))
                 .on_click(cx.listener(move |p, _, w, cx| p.choose(choice,w,cx))));
         }
@@ -294,9 +294,9 @@ impl Render for Picker {
             .when(!config, |d| d.child(div().flex_1().min_w_0().flex().child(self.query.clone())))
             .when(config, |d| d.child(div().flex_1()))
             .child(icon_button("habit-close","x").on_click(cx.listener(|p,_,_,cx| p.close(cx))));
-        ui::dialog("habit-selection-modal").relative().w(px(540.)).max_w(relative(0.96))
+        ui::dialog("habit-selection-modal").font_family(super::appearance::navigation_font(cx)).text_color(Theme::navigation_ink(false)).rounded(px(16.)).relative().w(px(540.)).max_w(relative(0.96))
             .h(px((if config { 440.0_f32 } else { 510.0_f32 }).min(f32::from(w.viewport_size().height)-32.)))
-            .mx(px(12.)).border_1().border_color(Theme::line_border()).overflow_hidden().flex().flex_col().text_size(px(14.))
+            .mx(px(12.)).border_1().border_color(Theme::index_border()).overflow_hidden().flex().flex_col().text_size(px(14.))
             .track_focus(&self.focus).key_context("HabitPicker").child(bar)
             .on_mouse_down(MouseButton::Left, |_,_,cx| cx.stop_propagation())
             .on_action(cx.listener(|p,_: &input::Cancel,w,cx| p.key(TextFieldEvent::Cancel,w,cx)))

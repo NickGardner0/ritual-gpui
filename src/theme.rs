@@ -406,6 +406,11 @@ impl Theme {
     pub(crate) fn navigation_highlight() -> Hsla {
         if dark() { rgbaf(255, 255, 255, 0.055) } else { rgbaf(17, 24, 39, 0.032) }
     }
+    // Index list and title bar in Ritual Desktop (sortable-habit-list and date-range-picker).
+    pub(crate) fn index_name() -> Hsla { rgb(if dark() { 0xf7f7f3 } else { 0x111827 }).into() }
+    pub(crate) fn index_value() -> Hsla { rgb(if dark() { 0xffffff } else { 0x000000 }).into() }
+    pub(crate) fn index_secondary() -> Hsla { Self::navigation_ink(false).opacity(0.73) }
+    pub(crate) fn index_border() -> Hsla { Self::navigation_ink(true).opacity(if dark() { 0.14 } else { 0.08 }) }
     pub fn sidebar_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
     /// Selected sidebar row (measured #DEDEDF).
     pub fn sidebar_selected() -> Hsla { workspace_color!(selected, ca(craft::N1000, 0.072)) }

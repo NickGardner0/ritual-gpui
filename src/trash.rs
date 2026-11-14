@@ -7,7 +7,7 @@ use crate::settings::display_title;
 use crate::search::doc_icon;
 use crate::store::{TRASH_DAYS, TrashEntry};
 pub(crate) use crate::ui::{close_button, dialog, list_header_text, list_line, menu_label, primary_button, row_hover, scrim, secondary_button};
-use crate::theme::{self, Theme, craft};
+use crate::theme::{self, Theme};
 use crate::ui::{TipExt, TitleBarExt, icon, popover, ui_para, ui_text};
 use gpui::{prelude::FluentBuilder, *};
 
@@ -309,6 +309,7 @@ impl Workspace {
                 true,
             ),
             Confirm::Restore(_) => (crate::settings::text("确认恢复？").to_string(), crate::settings::text("确认后将恢复至原位置").to_string(), crate::settings::text("恢复"), false),
+            Confirm::DeleteHabit(_, name) => (format!("Delete {name}?"), "This permanently removes the habit and all its logged entries.".into(), "Delete habit", true),
             Confirm::EmptyTrash => (
                 crate::settings::text("确认清空回收站？").to_string(),
                 crate::localized_format!("回收站中的 {} 项将被彻底删除，无法恢复", "The {} items in the Trash will be deleted permanently. This cannot be undone.", self.trash.len()),
@@ -334,9 +335,9 @@ impl Workspace {
             Confirm::Refs { show: false, no_ask } => Some(*no_ask),
             _ => None,
         };
-        let ok = primary_button("confirm-ok", action);
-        let ok = if danger { ok.bg(Theme::danger()).hover(|s| s.bg(theme::c(craft::R600))).active(|s| s.bg(theme::c(craft::R700))) } else { ok };
+        let ok = crate::ui::filled_button("confirm-ok", action, danger);
         let dialog = dialog("confirm-dialog")
+            .when(matches!(c, Confirm::DeleteHabit(..)), |d| d.rounded(px(16.)).border_1().border_color(Theme::index_border()))
             .w(px(if matches!(c, Confirm::SaveFailed) { 520. } else { 400. }))
             .px(px(24.))
             .pt(px(20.))
@@ -393,6 +394,9 @@ impl Workspace {
                             Confirm::Restore(id) => w.restore_doc(&id, cx),
                             Confirm::Purge(id) => w.purge_doc(&id, cx),
                             Confirm::EmptyTrash => w.empty_trash(cx),
+                            Confirm::DeleteHabit(id, _) => {
+                                if let Some(h) = &w.habits { h.update(cx, |h, cx| h.delete_habit(id, cx)); }
+                            }
                             Confirm::Refs { show, no_ask } => {
                                 if no_ask {
                                     let mut s = w.store.settings();
