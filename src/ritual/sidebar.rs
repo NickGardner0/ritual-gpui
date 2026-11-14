@@ -112,18 +112,21 @@ impl Workspace {
 
     pub(crate) fn ritual_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let settings = matches!(self.view, View::Settings | View::Trash);
-        let documents = self.navigation.as_ref().unwrap().documents_open;
+        let documents = self.rename.is_some() || self.batch.is_some();
+        let arrow = |forward: bool, cx: &mut Context<Self>| {
+            let (id, label) = if forward { ("page-forward", "Go forward") } else { ("page-back", "Go back") };
+            let enabled = self.history_target(forward, cx).is_some();
+            let ink = Theme::index_secondary();
+            div().id(id).no_drag().size(px(28.)).flex_none().flex().items_center().justify_center().rounded(px(RITUAL.row_radius))
+                .tip(label, None).child(ui::icon("arrow-left", 17., if enabled { ink } else { ink.opacity(0.45) })
+                    .when(forward, |s| s.with_transformation(Transformation::rotate(radians(std::f32::consts::PI)))))
+                .when(enabled, |d| d.tab_index(0).cursor_pointer().hover(|s| s.bg(Theme::navigation_highlight()))
+                    .focus(|s| s.bg(Theme::navigation_highlight()))
+                    .on_click(cx.listener(move |ws, _, w, cx| ws.step_page_history(forward, w, cx))))
+        };
         let head = div().h(px(HEADER_H)).w_full().flex_none().flex().items_center().title_bar()
             .pl(px(theme::TRAFFIC_LIGHTS_W)).pr(px(9.)).gap(px(2.))
-            .child(tool("hide-sidebar", "Hide sidebar", "icons/panel-left-close.svg").on_click(cx.listener(|ws, _, _, cx| {
-                ws.sidebar_open = false; cx.notify();
-            })))
-            .child(div().flex_1())
-            .when(!settings, |d| d.child(tool("panel-library", if documents { "Show Ritual navigation" } else { "Show document tree" },
-                if documents { "icons/arrow-left.svg" } else { "icons/library.svg" }).on_click(cx.listener(|ws, _, _, cx| {
-                    let nav = ws.navigation.as_mut().unwrap(); nav.documents_open = !nav.documents_open;
-                    ws.batch = None; cx.notify();
-                }))))
+            .child(div().flex_1()).child(arrow(false, cx)).child(arrow(true, cx))
             .child(tool("sidebar-search", "Search documents", "icons/search.svg").on_click(cx.listener(|ws, _, w, cx| ws.open_search(w, cx))))
             .child(tool("compose-thread", "New thread", "ritual/navigation/square-pen.svg")
                 .on_click(cx.listener(|ws, _, w, cx| ws.go_ritual(Page::Draft(None), w, cx))));

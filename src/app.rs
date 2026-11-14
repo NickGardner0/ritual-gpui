@@ -497,6 +497,7 @@ impl Workspace {
             }));
             ws._subs.push(cx.observe(&habits, |_, _, cx| cx.notify()));
             ws.navigation = Some(crate::ritual::Navigation::new(window, cx));
+            ws._subs.push(cx.observe_self(|ws, cx| ws.record_ritual_page(cx)));
             ws.composer = Some(composer);
             ws.habits = Some(habits);
         }
@@ -507,6 +508,7 @@ impl Workspace {
             None if quick => ws.new_doc(window, cx),
             None => ws.view = View::Home,
         }
+        ws.record_ritual_page(cx);
         // Kept in the top bar (not just a toast): the user should notice.
         let warnings = ws.store.take_warnings();
         if !warnings.is_empty() {
@@ -535,11 +537,8 @@ impl Workspace {
     /// could not be saved first, see [`Self::save_before`]).
     pub fn try_open(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if self.entries.iter().any(|e| e.id == id && e.meta.folder.is_some()) { return self.open_folder(id, window, cx); }
-        if self.view != View::Doc {
-            self.view = View::Doc;
-            cx.notify();
-        }
         if self.current.as_deref() == Some(id) {
+            if self.view != View::Doc { self.view = View::Doc; cx.notify(); }
             return true;
         }
         let target = id.to_string();
@@ -629,6 +628,7 @@ impl Workspace {
         if let Some(previous) = &self.current
             && self.document_peers(previous, window, cx).is_empty() { self.store.forget_loaded(previous); }
         self.editor = Some(editor);
+        self.view = View::Doc;
         self.current = Some(id.to_string());
         crate::quick_note::used(id, cx);
         self.reveal_in_tree(id);
@@ -877,7 +877,6 @@ impl Workspace {
         self.rename = Some(Rename { id: id.to_string(), field, _subs: subs });
         // From 主页 the row may be hidden: show it in the sidebar.
         self.sidebar_open = true;
-        if let Some(nav) = &mut self.navigation { nav.documents_open = true; }
         self.reveal_in_tree(id);
         self.row_menu = None;
         cx.notify();

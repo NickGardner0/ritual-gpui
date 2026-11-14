@@ -411,6 +411,12 @@ impl Theme {
     pub(crate) fn index_value() -> Hsla { rgb(if dark() { 0xffffff } else { 0x000000 }).into() }
     pub(crate) fn index_secondary() -> Hsla { Self::navigation_ink(false).opacity(0.73) }
     pub(crate) fn index_border() -> Hsla { Self::navigation_ink(true).opacity(if dark() { 0.14 } else { 0.08 }) }
+    // The white popover and subtle day fills in Ritual Desktop's Index date picker.
+    pub(crate) fn calendar_surface() -> Hsla {
+        if dark() { Self::popover_bg() } else { Self::bg_body().blend(Hsla::white().opacity(0.80)) }
+    }
+    pub(crate) fn calendar_hover() -> Hsla { Self::navigation_ink(true).opacity(if dark() { 0.11 } else { 0.038 }) }
+    pub(crate) fn calendar_range() -> Hsla { Self::navigation_ink(true).opacity(if dark() { 0.15 } else { 0.065 }) }
     pub fn sidebar_hover() -> Hsla { workspace_color!(hover, ca(craft::N1000, 0.045)) }
     /// Selected sidebar row (measured #DEDEDF).
     pub fn sidebar_selected() -> Hsla { workspace_color!(selected, ca(craft::N1000, 0.072)) }

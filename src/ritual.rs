@@ -4,6 +4,7 @@ mod index;
 mod index_calendar;
 pub(crate) mod appearance;
 mod navigation;
+mod history;
 mod sidebar;
 mod pages;
 pub use navigation::{Page, Destination};

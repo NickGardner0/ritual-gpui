@@ -76,13 +76,17 @@ impl Workspace {
             let available = f32::from(window.viewport_size().width) - 16.;
             let body = match menu {
                 Menu::Actions => self.index_actions(habits, cx),
-                Menu::Dates => self.index_dates(period, available, cx),
+                Menu::Dates => self.index_dates(period, available, f32::from(window.viewport_size().height), cx),
             };
             let shell = ui::popover().id("index-menu").occlude().track_focus(state.focus.as_ref().unwrap()).tab_group()
                 .font_family(appearance::navigation_font(cx)).rounded(px(9.)).border_color(Theme::index_border())
+                .when(menu == Menu::Dates, |d| d.bg(Theme::calendar_surface()).rounded(px(14.)).text_color(Theme::navigation_ink(true)))
                 .max_h(px((f32::from(window.viewport_size().height)-58.).max(60.))).overflow_y_scroll().child(body)
                 .on_key_down(cx.listener(|w, event: &KeyDownEvent, win, cx| {
                     match event.keystroke.key.as_str() {
+                        "escape" if w.navigation.as_ref().is_some_and(|n| n.index.calendar.presets_open() && n.index.open == Some(Menu::Dates)) => {
+                            w.toggle_date_presets(win, cx);
+                        }
                         "escape" => { w.close_index_menu(); w.focus.focus(win); cx.notify(); }
                         "down" => win.focus_next(), "up" => win.focus_prev(),
                         "tab" if event.keystroke.modifiers.shift => win.focus_prev(), "tab" => win.focus_next(),

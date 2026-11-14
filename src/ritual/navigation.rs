@@ -23,7 +23,7 @@ pub enum Page { Destination(Destination), CreateSpace, Space(Uuid), Draft(Option
 pub(crate) struct Navigation {
     pub(super) index: super::index::IndexMenuState,
     pub(super) expanded: HashSet<Uuid>,
-    pub(crate) documents_open: bool,
+    pub(super) visits: super::history::PageHistory,
     pub(super) hovered_destination: Option<Destination>,
     pub(super) name: Entity<TextField>,
     pub(super) goal: Entity<TextField>,
@@ -69,7 +69,7 @@ impl Navigation {
                 }
             }));
         }
-        Self { index: Default::default(), name, goal, message, previous: View::Home, expanded: Default::default(), documents_open: false, hovered_destination: None,
+        Self { index: Default::default(), name, goal, message, previous: View::Home, expanded: Default::default(), visits: Default::default(), hovered_destination: None,
             drafts: Default::default(), messages: vec![], logs: vec![], loading: false, error: None, request: 0,
             history_scroll: ScrollHandle::new(), _subscriptions: subscriptions }
     }
@@ -91,7 +91,6 @@ impl Workspace {
     }
 
     pub(super) fn go_destination(&mut self, dest: Destination, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(nav) = &mut self.navigation { nav.documents_open = false; }
         self.batch = None;
         window.focus(&self.focus);
         match dest {
@@ -106,7 +105,6 @@ impl Workspace {
         self.show_view(View::Ritual(page), cx);
         self.batch = None;
         let nav = self.navigation.as_mut().unwrap();
-        nav.documents_open = false;
         nav.error = None;
         nav.loading = false;
         nav.request += 1;
